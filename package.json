@@ -24,17 +24,35 @@
   "bugs": {
     "url": "https://github.com/hacss/core/issues"
   },
-  "homepage": "https://github.com/hacss/core#readme",
+  "homepage": "https://hacss.io",
   "devDependencies": {
     "@babel/core": "^7.9.6",
     "@babel/preset-env": "^7.9.6",
+    "@hacss/eslint-config": "^1.0.0",
+    "@hacss/prettier-config": "^1.0.0",
     "babel-loader": "^8.1.0",
     "core-js-pure": "^3.6.5",
     "css.escape": "^1.5.1",
+    "eslint": "^6.8.0",
+    "husky": "^4.2.5",
     "known-css-properties": "^0.18.0",
     "line-diff": "^2.1.0",
+    "lint-staged": "^10.2.2",
+    "prettier": "^2.0.5",
     "ramda": "^0.27.0",
     "webpack": "^4.43.0",
     "webpack-cli": "^3.3.11"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.js": [
+      "prettier --parser babel --write",
+      "eslint",
+      "npm test"
+    ]
   }
 }
