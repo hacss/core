@@ -54,5 +54,6 @@
       "eslint",
       "npm test"
     ]
-  }
+  },
+  "prettier": "@hacss/prettier-config"
 }
