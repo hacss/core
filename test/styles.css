@@ -1,0 +1,42 @@
+.\:\:after\{content\:\'Yes\'\;font-weight\:700\;\}::after{content:'Yes';font-weight:700;}
+.background\:\#009\;{background:#009;}
+.background\:\#00c\;{background:#00c;}
+.background\:\#999\;{background:#999;}
+.background\:\#c00\;{background:#c00;}
+.background\:\#fff\;{background:#fff;}
+.border\:0\;{border:0;}
+.cbx:not(:checked) + .cbx\:not\(\:checked\)\+text-decoration\:line-through\;{text-decoration:line-through;}
+.color\:\#000\;{color:#000;}
+.color\:\#fff\;{color:#fff;}
+.display\:flex\;{display:flex;}
+.display\:none\;{display:none;}
+.flex-direction\:column\;{flex-direction:column;}
+.flex-direction\:row\;{flex-direction:row;}
+.flex\:1\;{flex:1;}
+.font-family\:sans-serif\;{font-family:'Inter', sans-serif;}
+.font-size\:16px\;{font-size:16px;}
+.font-size\:20px\;{font-size:20px;}
+.font-size\:28px\;{font-size:28px;}
+.font-size\:40px\;{font-size:40px;}
+.font-weight\:400\;{font-weight:400;}
+.font-weight\:500\;{font-weight:500;}
+.font-weight\:700\;{font-weight:700;}
+.font\:inherit\;{font:inherit;}
+.margin\:-2px\;{margin:-2px;}
+.margin\:16px\;{margin:16px;}
+.margin\:2px\;{margin:2px;}
+.max-width\:500px\;{max-width:500px;}
+.padding\:8px__16px\;{padding:8px 16px;}
+.text-align\:center\;{text-align:center;}
+.width\:100\%\;{width:100%;}
+.width\:calc\(25\%-4px\)\;{width:calc(25% - 4px);}
+.\:hover\{background\:\#00c\;\}:hover{background:#00c;}
+.\:active\{background\:\#c00\;\}:active{background:#c00;}
+.\:disabled\{background\:\#999\;\}:disabled{background:#999;}
+.ctxp:hover > .ctxp\:hover\>background\:\#ff0\;{background:#ff0;}
+.ctxp:hover .ctxp\:hover_background\:\#ff0\;{background:#ff0;}
+.word:hover + .word\:hover\+background\:\#ff0\;{background:#ff0;}
+@media not all{.\@doesnotexist\{display\:block\;\}{display:block;}}
+@media only screen and (min-width: 1200px){.\@large\{display\:inline\;\}{display:inline;}}
+@media only screen and (min-width: 600px) and (max-width: 1199px){.\@medium\{display\:inline\;\}{display:inline;}}
+@media only screen and (max-width: 599px){.\@small\{display\:inline\;\}{display:inline;}}
