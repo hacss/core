@@ -51,7 +51,7 @@
   "lint-staged": {
     "*.js": [
       "prettier --parser babel --write",
-      "eslint",
+      "eslint --fix",
       "npm test"
     ]
   },
