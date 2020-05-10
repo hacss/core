@@ -208,7 +208,7 @@ const build = config => {
   );
 
   const pattern = new RegExp(
-    `(@(\\w+){)?((\\w+(:[^\\s]+)?)([_+>]))?((:[^\\s{]+){)?(((${join(
+    `(@([\\-\\w]+){)?(([\\-\\w]+(:[^\\s]+)?)([_+>]))?((:[^\\s{]+){)?(((${join(
       "|",
       properties,
     )}):[^\\s\\{\\};]+;)+)[}]*`,
@@ -257,9 +257,7 @@ const build = config => {
       ascend(
         pipe(prop("pseudos"), defaultTo(""), match(/:[^:]+/g), pseudoWeight),
       ),
-      ascend(
-        prop("className"),
-      ),
+      ascend(prop("className")),
     ]),
     map(
       pipe(
