@@ -36,7 +36,7 @@
 .ctxp:hover > .ctxp\:hover\>background\:\#ff0\;{background:#ff0;}
 .ctxp:hover .ctxp\:hover_background\:\#ff0\;{background:#ff0;}
 .word:hover + .word\:hover\+background\:\#ff0\;{background:#ff0;}
-@media not all{.\@doesnotexist\{display\:block\;\}{display:block;}}
-@media only screen and (min-width: 1200px){.\@large\{display\:inline\;\}{display:inline;}}
-@media only screen and (min-width: 600px) and (max-width: 1199px){.\@medium\{display\:inline\;\}{display:inline;}}
 @media only screen and (max-width: 599px){.\@small\{display\:inline\;\}{display:inline;}}
+@media only screen and (min-width: 600px) and (max-width: 1199px){.\@medium\{display\:inline\;\}{display:inline;}}
+@media only screen and (min-width: 1200px){.\@large\{display\:inline\;\}{display:inline;}}
+@media not all{.\@doesnotexist\{display\:block\;\}{display:block;}}

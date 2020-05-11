@@ -2,6 +2,7 @@ require("css.escape");
 
 import {
   T,
+  add,
   addIndex,
   adjust,
   always,
@@ -16,7 +17,6 @@ import {
   contains,
   curryN,
   defaultTo,
-  descend,
   dissoc,
   drop,
   equals,
@@ -31,6 +31,7 @@ import {
   isEmpty,
   isNil,
   join,
+  keys,
   length,
   map,
   mapObjIndexed,
@@ -230,6 +231,32 @@ const build = config => {
           "declarations",
         ]),
         fromPairs,
+      ),
+    ),
+    sortWith([
+      ascend(
+        pipe(
+          prop("mediaQuery"),
+          ifElse(
+            isNil,
+            always(-1),
+            pipe(
+              flip(indexOf)(keys(mediaQueries)),
+              when(equals(-1), always(add(1, length(keys(mediaQueries))))),
+            ),
+          ),
+        ),
+      ),
+      ascend(
+        pipe(prop("context"), defaultTo(""), match(/:[^:]+/g), pseudoWeight),
+      ),
+      ascend(
+        pipe(prop("pseudos"), defaultTo(""), match(/:[^:]+/g), pseudoWeight),
+      ),
+      ascend(prop("className")),
+    ]),
+    map(
+      pipe(
         computeField("selector", selector),
         applyRecord({
           mediaQuery: when(
@@ -247,20 +274,6 @@ const build = config => {
             stringifyDeclarations,
           ),
         }),
-      ),
-    ),
-    sortWith([
-      descend(pipe(prop("mediaQuery"), isNil)),
-      ascend(
-        pipe(prop("context"), defaultTo(""), match(/:[^:]+/g), pseudoWeight),
-      ),
-      ascend(
-        pipe(prop("pseudos"), defaultTo(""), match(/:[^:]+/g), pseudoWeight),
-      ),
-      ascend(prop("className")),
-    ]),
-    map(
-      pipe(
         apply(
           pipe,
           map(dissoc, ["className", "pseudos", "context", "operator"]),

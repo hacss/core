@@ -21,6 +21,36 @@ assert.equal(
 );
 process.stdout.write("success.\n");
 
+process.stdout.write(
+  "* Media query rules appear according to configured order...",
+);
+
+{
+  const actual = hacss(
+    `
+    <div class="
+      @csmall{font-size:10px;}
+      @blarge{font-size:18px;}
+      @amedium{font-size:14px;}
+    ">
+      Hello
+    </div>
+  `,
+    {
+      mediaQueries: {
+        blarge: "LARGE",
+        amedium: "MEDIUM",
+        csmall: "SMALL",
+      },
+    },
+  )
+    .split("\n")
+    .map(x => x.match(/[^\{]+/)[0]);
+
+  assert.deepEqual(actual, ["@media LARGE", "@media MEDIUM", "@media SMALL"]);
+}
+process.stdout.write("success.\n");
+
 var config = {
   mediaQueries: {
     medium: "only screen and (min-width: 600px) and (max-width: 1199px)",
@@ -47,6 +77,7 @@ fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {
   ) {
     if (err) throw err;
     var actual = hacss(code, config);
+    process.stdout.write(actual);
     var diff = new Diff(expected, actual);
     console.log(diff.toString());
     if (process.argv.indexOf("--update") !== -1) {
