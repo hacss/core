@@ -7,7 +7,7 @@ var hacss = require("../dist/hacss.umd.js");
 process.stdout.write(
   "* Context classes can contain word characters and hyphens...",
 );
-assert.equal(hacss("Foo-_bar+color:red;").match(/\S+/)[0], ".Foo-_bar");
+assert.equal(hacss("Foo-_bar+color:red;").css.match(/\S+/)[0], ".Foo-_bar");
 process.stdout.write("success.\n");
 
 process.stdout.write(
@@ -16,7 +16,7 @@ process.stdout.write(
 assert.equal(
   hacss("@Foo-_bar{color:red;}", {
     mediaQueries: { "Foo-_bar": "foobar" },
-  }).substring(0, 13),
+  }).css.substring(0, 13),
   "@media foobar",
 );
 process.stdout.write("success.\n");
@@ -44,7 +44,7 @@ process.stdout.write(
       },
     },
   )
-    .split("\n")
+    .css.split("\n")
     .map(x => x.match(/[^\{]+/)[0]);
 
   assert.deepEqual(actual, ["@media LARGE", "@media MEDIUM", "@media SMALL"]);
@@ -69,6 +69,10 @@ var config = {
   ],
 };
 
+process.stdout.write("* Invalid rules are returned as 'ignored'...");
+assert.equal(hacss('color:re">d;').ignored[0].className, 'color:re">d;');
+process.stdout.write("success.\n\n");
+
 fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {
   if (err) throw err;
   fs.readFile(path.join(__dirname, "styles.css"), "utf8", function (
@@ -76,7 +80,7 @@ fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {
     expected,
   ) {
     if (err) throw err;
-    var actual = hacss(code, config);
+    var actual = hacss(code, config).css;
     process.stdout.write(actual);
     var diff = new Diff(expected, actual);
     console.log(diff.toString());

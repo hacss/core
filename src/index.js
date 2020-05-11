@@ -1,5 +1,7 @@
 require("css.escape");
 
+const { all: knownProperties } = require("known-css-properties");
+
 import {
   T,
   add,
@@ -21,6 +23,7 @@ import {
   drop,
   equals,
   filter,
+  flatten,
   flip,
   fromPairs,
   head,
@@ -28,10 +31,12 @@ import {
   ifElse,
   indexOf,
   insert,
+  is,
   isEmpty,
   isNil,
   join,
   keys,
+  last,
   length,
   map,
   mapObjIndexed,
@@ -54,6 +59,7 @@ import {
   split,
   take,
   toPairs,
+  tryCatch,
   type,
   unapply,
   uniqBy,
@@ -61,7 +67,8 @@ import {
   when,
   zip,
 } from "ramda";
-const { all: knownProperties } = require("known-css-properties");
+
+import assertValidRule from "postcss/lib/parse.js";
 
 const DEFAULT_MEDIA_QUERIES = {
   small: "only screen and (max-width: 599px)",
@@ -185,6 +192,11 @@ const wrapper = curryN(
   ),
 );
 
+const validate = rule => {
+  assertValidRule(rule);
+  return rule;
+};
+
 const build = config => {
   const mediaQueries = mergeRight(
     DEFAULT_MEDIA_QUERIES,
@@ -274,18 +286,45 @@ const build = config => {
             stringifyDeclarations,
           ),
         }),
-        apply(
-          pipe,
-          map(dissoc, ["className", "pseudos", "context", "operator"]),
-        ),
+        apply(pipe, map(dissoc, ["pseudos", "context", "operator"])),
         flip(repeat)(2),
-        adjust(0, prop("declarations")),
-        adjust(1, pipe(dissoc("declarations"), values, reverse, map(wrapper))),
-        prepend(applyTo),
-        apply(reduce),
+        adjust(0, prop("className")),
+        adjust(
+          1,
+          pipe(
+            dissoc("className"),
+            flip(repeat)(2),
+            adjust(0, prop("declarations")),
+            adjust(
+              1,
+              pipe(dissoc("declarations"), values, reverse, map(wrapper)),
+            ),
+            prepend(applyTo),
+            apply(reduce),
+            flip(repeat)(2),
+            adjust(
+              0,
+              pipe(
+                tryCatch(validate, identity),
+                ifElse(is(Error), prop("message"), always(null)),
+              ),
+            ),
+          ),
+        ),
+        flatten,
       ),
     ),
-    join("\n"),
+    flip(repeat)(2),
+    adjust(0, pipe(filter(pipe(nth(1), isNil)), map(last), join("\n"))),
+    adjust(
+      1,
+      pipe(
+        filter(pipe(nth(1), o(not, isNil))),
+        map(pipe(zip(["className", "error", "css"]), fromPairs)),
+      ),
+    ),
+    zip(["css", "ignored"]),
+    fromPairs,
   );
 };
 

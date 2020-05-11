@@ -38,6 +38,7 @@
     "known-css-properties": "^0.18.0",
     "line-diff": "^2.1.0",
     "lint-staged": "^10.2.2",
+    "postcss": "^7.0.30",
     "prettier": "^2.0.5",
     "ramda": "^0.27.0",
     "webpack": "^4.43.0",
