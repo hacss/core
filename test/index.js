@@ -71,7 +71,7 @@ var config = {
 
 process.stdout.write("* Invalid rules are returned as 'ignored'...");
 assert.equal(hacss('color:re">d;').ignored[0].className, 'color:re">d;');
-process.stdout.write("success.\n\n");
+process.stdout.write("success.\n");
 
 process.stdout.write("* Invalid plugins have no effect...");
 assert.equal(
@@ -79,6 +79,8 @@ assert.equal(
   ".color\\:red\\;{color:red;}",
 );
 process.stdout.write("success.\n");
+
+process.stdout.write("\n");
 
 fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {
   if (err) throw err;
@@ -88,7 +90,6 @@ fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {
   ) {
     if (err) throw err;
     var actual = hacss(code, config).css;
-    process.stdout.write(actual);
     var diff = new Diff(expected, actual);
     console.log(diff.toString());
     if (process.argv.indexOf("--update") !== -1) {
