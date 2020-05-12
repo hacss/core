@@ -73,6 +73,13 @@ process.stdout.write("* Invalid rules are returned as 'ignored'...");
 assert.equal(hacss('color:re">d;').ignored[0].className, 'color:re">d;');
 process.stdout.write("success.\n\n");
 
+process.stdout.write("* Invalid plugins have no effect...");
+assert.equal(
+  hacss("color:red;", { plugins: ["foo", null] }).css,
+  ".color\\:red\\;{color:red;}",
+);
+process.stdout.write("success.\n");
+
 fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {
   if (err) throw err;
   fs.readFile(path.join(__dirname, "styles.css"), "utf8", function (

@@ -7,12 +7,14 @@ import {
   add,
   addIndex,
   adjust,
+  all,
   always,
   any,
   apply,
   applyTo,
   ascend,
   assoc,
+  both,
   call,
   concat,
   cond,
@@ -214,10 +216,17 @@ const build = config => {
     reduce(o, identity),
   )(config.plugins || []);
 
-  const properties = reduce(
-    concat,
-    knownProperties,
-    map(o(defaultTo([]), nth(1)), config.plugins || []),
+  const properties = flatten(
+    concat(
+      knownProperties,
+      map(
+        pipe(
+          nth(1),
+          ifElse(both(is(Array), all(is(String))), identity, always([])),
+        ),
+        filter(o(not, isNil), config.plugins || []),
+      ),
+    ),
   );
 
   const pattern = new RegExp(
