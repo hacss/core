@@ -80,6 +80,13 @@ assert.equal(
 );
 process.stdout.write("success.\n");
 
+process.stdout.write("* A scope is added to each rule if specified...");
+assert.equal(
+  hacss("color:red;", { scope: "#foo" }).css.match(/\S+/)[0],
+  "#foo",
+);
+process.stdout.write("success.\n");
+
 process.stdout.write("\n");
 
 fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {

@@ -154,6 +154,14 @@ const stringifyDeclarations = pipe(
 );
 
 const build = config => {
+  const prependScope = call(
+    pipe(
+      prop("scope"),
+      ifElse(isNil, always(identity), pipe(flip(concat)(" "), prepend)),
+    ),
+    config,
+  );
+
   const mediaQueries = mergeRight(
     DEFAULT_MEDIA_QUERIES,
     config.mediaQueries || [],
@@ -311,6 +319,7 @@ const build = config => {
                           "pseudos",
                           "declarations",
                         ]),
+                        prependScope,
                         filter(identity),
                         join(""),
                       ),
