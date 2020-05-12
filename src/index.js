@@ -49,10 +49,12 @@ import {
   nth,
   nthArg,
   o,
+  pair,
   pick,
   pipe,
   prepend,
   prop,
+  props,
   reduce,
   repeat,
   replace,
@@ -128,36 +130,6 @@ const pseudoWeight = pipe(
   reduce(max, -1),
 );
 
-const selector = pipe(
-  flip(repeat)(2),
-  adjust(
-    0,
-    pipe(
-      pick(["context", "operator"]),
-      values,
-      ifElse(
-        any(isNil),
-        always(""),
-        pipe(
-          adjust(0, concat(".")),
-          adjust(1, ifElse(equals("_"), always(""), flip(concat)(" "))),
-          join(" "),
-        ),
-      ),
-    ),
-  ),
-  adjust(
-    1,
-    pipe(
-      pick(["className", "pseudos"]),
-      values,
-      adjust(0, pipe(CSS.escape, concat("."))),
-      join(""),
-    ),
-  ),
-  join(""),
-);
-
 const parseDeclarations = pipe(
   split(";"),
   filter(o(not, isEmpty)),
@@ -181,24 +153,6 @@ const stringifyDeclarations = pipe(
   join(""),
 );
 
-const wrapper = curryN(
-  2,
-  ifElse(
-    pipe(nthArg(0), isNil),
-    nthArg(1),
-    pipe(
-      unapply(identity),
-      adjust(1, pipe(concat("{"), flip(concat)("}"))),
-      join(""),
-    ),
-  ),
-);
-
-const validate = rule => {
-  assertValidRule(rule);
-  return rule;
-};
-
 const build = config => {
   const mediaQueries = mergeRight(
     DEFAULT_MEDIA_QUERIES,
@@ -208,8 +162,9 @@ const build = config => {
   const applyPlugins = pipe(
     map(
       cond([
-        [pipe(type, equals("Array")), nth(0)],
-        [pipe(type, equals("Function")), identity],
+        [isNil, always(identity)],
+        [is(Function), identity],
+        [pipe(nth(0), is(Function)), nth(0)],
         [T, always(identity)],
       ]),
     ),
@@ -258,14 +213,7 @@ const build = config => {
       ascend(
         pipe(
           prop("mediaQuery"),
-          ifElse(
-            isNil,
-            always(-1),
-            pipe(
-              flip(indexOf)(keys(mediaQueries)),
-              when(equals(-1), always(add(1, length(keys(mediaQueries))))),
-            ),
-          ),
+          ifElse(isNil, always(-1), flip(indexOf)(keys(mediaQueries))),
         ),
       ),
       ascend(
@@ -278,44 +226,127 @@ const build = config => {
     ]),
     map(
       pipe(
-        computeField("selector", selector),
-        applyRecord({
-          mediaQuery: when(
-            o(not, isNil),
-            pipe(
-              flip(prop)(mediaQueries),
-              defaultTo("not all"),
-              concat("@media "),
-            ),
-          ),
-          declarations: pipe(
-            parseDeclarations,
-            applyFixes,
-            applyPlugins,
-            stringifyDeclarations,
-          ),
-        }),
-        apply(pipe, map(dissoc, ["pseudos", "context", "operator"])),
         flip(repeat)(2),
         adjust(0, prop("className")),
         adjust(
           1,
           pipe(
-            dissoc("className"),
-            flip(repeat)(2),
-            adjust(0, prop("declarations")),
-            adjust(
-              1,
-              pipe(dissoc("declarations"), values, reverse, map(wrapper)),
-            ),
-            prepend(applyTo),
-            apply(reduce),
-            flip(repeat)(2),
-            adjust(
-              0,
+            applyRecord({
+              className: pipe(o(concat("."), CSS.escape), pair(null)),
+              context: pipe(
+                when(o(not, isNil), concat(".")),
+                defaultTo(null),
+                pair(null),
+              ),
+              declarations: pipe(
+                parseDeclarations,
+                applyFixes,
+                tryCatch(
+                  pipe(applyPlugins, stringifyDeclarations, pair(null)),
+                  pipe(prop("message"), flip(pair)(null)),
+                ),
+              ),
+              mediaQuery: ifElse(
+                isNil,
+                always([null, null]),
+                pipe(
+                  flip(repeat)(2),
+                  adjust(0, flip(prop)(mediaQueries)),
+                  ifElse(
+                    pipe(nth(0), is(String)),
+                    pipe(nth(0), concat("@media "), pair(null)),
+                    pipe(
+                      nth(1),
+                      concat("Unrecognized media query: "),
+                      flip(pair)(null),
+                    ),
+                  ),
+                ),
+              ),
+              operator: pipe(
+                flip(prop)({ _: " ", "+": " + ", ">": " > " }),
+                defaultTo(null),
+                pair(null),
+              ),
+              pseudos: pair(null),
+            }),
+            when(
+              pipe(filter(nth(0)), keys, length, equals(0)),
               pipe(
-                tryCatch(validate, identity),
-                ifElse(is(Error), prop("message"), always(null)),
+                computeField(
+                  "css",
+                  pipe(
+                    map(nth(1)),
+                    flip(repeat)(2),
+                    adjust(
+                      0,
+                      pipe(
+                        prop("mediaQuery"),
+                        ifElse(isNil, always(identity), mq => x =>
+                          `${mq}{${x}}`,
+                        ),
+                      ),
+                    ),
+                    adjust(
+                      1,
+                      pipe(
+                        applyRecord({
+                          declarations: pipe(concat("{"), flip(concat)("}")),
+                        }),
+                        props([
+                          "context",
+                          "operator",
+                          "className",
+                          "pseudos",
+                          "declarations",
+                        ]),
+                        filter(identity),
+                        join(""),
+                      ),
+                    ),
+                    apply(call),
+                    tryCatch(
+                      pipe(assertValidRule, pair(null)),
+                      pipe(
+                        props(["message", "source"]),
+                        join(" in "),
+                        flip(pair)(null),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            ifElse(
+              pipe(filter(nth(0)), keys, length, equals(0)),
+              pipe(prop("css"), nth(1), pair(null)),
+              pipe(
+                map(nth(0)),
+                filter(identity),
+                toPairs,
+                map(
+                  pipe(
+                    adjust(
+                      0,
+                      pipe(
+                        flip(prop)({
+                          className: "class name",
+                          context: "context class",
+                          css: "CSS output",
+                          declarations: "declarations",
+                          mediaQuery: "media query",
+                          operator: "context operator",
+                          pseudos: "pseudos",
+                        }),
+                        when(o(not, isNil), concat("Error in ")),
+                        defaultTo("Error"),
+                      ),
+                    ),
+                    join(": "),
+                  ),
+                ),
+                head,
+                flip(pair)(null),
               ),
             ),
           ),
@@ -324,12 +355,12 @@ const build = config => {
       ),
     ),
     flip(repeat)(2),
-    adjust(0, pipe(filter(pipe(nth(1), isNil)), map(last), join("\n"))),
+    adjust(0, pipe(map(nth(2)), filter(identity), join("\n"))),
     adjust(
       1,
       pipe(
-        filter(pipe(nth(1), o(not, isNil))),
-        map(pipe(zip(["className", "error", "css"]), fromPairs)),
+        filter(nth(1)),
+        map(pipe(take(2), zip(["className", "error"]), fromPairs)),
       ),
     ),
     zip(["css", "ignored"]),
