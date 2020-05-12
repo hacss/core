@@ -75,7 +75,7 @@ process.stdout.write("success.\n");
 
 process.stdout.write("* Invalid plugins have no effect...");
 assert.equal(
-  hacss("color:red;", { plugins: ["foo", null] }).css,
+  hacss("color:red;", { plugins: ["foo", null, () => "foo"] }).css,
   ".color\\:red\\;{color:red;}",
 );
 process.stdout.write("success.\n");

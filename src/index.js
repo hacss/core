@@ -159,17 +159,28 @@ const build = config => {
     config.mediaQueries || [],
   );
 
-  const applyPlugins = pipe(
-    map(
-      cond([
-        [isNil, always(identity)],
-        [is(Function), identity],
-        [pipe(nth(0), is(Function)), nth(0)],
-        [T, always(identity)],
-      ]),
+  const applyPlugins = call(
+    pipe(
+      prop("plugins"),
+      defaultTo([]),
+      map(
+        pipe(
+          cond([
+            [isNil, always(identity)],
+            [is(Function), identity],
+            [pipe(nth(0), is(Function)), nth(0)],
+            [T, always(identity)],
+          ]),
+          when(
+            pipe(flip(tryCatch)(always(null)), applyTo({}), o(not, is(Object))),
+            always(identity),
+          ),
+        ),
+      ),
+      reduce(o, identity),
     ),
-    reduce(o, identity),
-  )(config.plugins || []);
+    config,
+  );
 
   const properties = flatten(
     concat(
