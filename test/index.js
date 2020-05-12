@@ -73,6 +73,21 @@ process.stdout.write("* Invalid rules are returned as 'ignored'...");
 assert.equal(hacss('color:re">d;').ignored[0].className, 'color:re">d;');
 process.stdout.write("success.\n");
 
+process.stdout.write("* Vanilla plugins affect declarations...");
+assert.equal(
+  hacss("color:blue;", {
+    plugins: [
+      decls => {
+        decls["background"] = decls["color"];
+        delete decls["color"];
+        return decls;
+      },
+    ],
+  }).css,
+  ".color\\:blue\\;{background:blue;}",
+);
+process.stdout.write("success.\n");
+
 process.stdout.write("* Invalid plugins have no effect...");
 assert.equal(
   hacss("color:red;", { plugins: ["foo", null, () => "foo"] }).css,
