@@ -1,21 +1,14 @@
-require("css.escape");
-
 const { all: knownProperties } = require("known-css-properties");
 
 import {
-  T,
   addIndex,
   adjust,
-  all,
   always,
   apply,
-  applyTo,
   ascend,
   assoc,
-  both,
   call,
   concat,
-  cond,
   contains,
   defaultTo,
   drop,
@@ -126,7 +119,7 @@ const pseudoWeight = pipe(
 const parseDeclarations = pipe(
   split(";"),
   filter(o(not, isEmpty)),
-  map(pipe(match(/([^\:]+)\:(.+)/), drop(1))),
+  map(pipe(match(/([^:]+):(.+)/), drop(1))),
   fromPairs,
 );
 
@@ -134,7 +127,7 @@ const applyFixes = map(
   pipe(
     replace(
       /calc\(.+\)/g,
-      replace(/[\+\-\*\/]/g, o(concat(" "), flip(concat)(" "))),
+      replace(/[+\-*/]/g, o(concat(" "), flip(concat)(" "))),
     ),
     replace(/__/g, " "),
   ),
