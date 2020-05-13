@@ -64,6 +64,7 @@ import {
   zip,
 } from "ramda";
 
+import composePlugins from "@hacss/compose-plugins";
 import assertValidRule from "postcss/lib/parse.js";
 
 const DEFAULT_MEDIA_QUERIES = {
@@ -146,6 +147,16 @@ const stringifyDeclarations = pipe(
 );
 
 const build = config => {
+  const [applyPlugins, properties] = call(
+    pipe(
+      prop("plugins"),
+      defaultTo([]),
+      concat([[identity, knownProperties]]),
+      apply(composePlugins),
+    ),
+    config,
+  );
+
   const prependScope = call(
     pipe(
       prop("scope"),
@@ -157,42 +168,6 @@ const build = config => {
   const mediaQueries = mergeRight(
     DEFAULT_MEDIA_QUERIES,
     config.mediaQueries || [],
-  );
-
-  const applyPlugins = call(
-    pipe(
-      prop("plugins"),
-      defaultTo([]),
-      map(
-        pipe(
-          cond([
-            [isNil, always(identity)],
-            [is(Function), identity],
-            [pipe(nth(0), is(Function)), nth(0)],
-            [T, always(identity)],
-          ]),
-          when(
-            pipe(flip(tryCatch)(always(null)), applyTo({}), o(not, is(Object))),
-            always(identity),
-          ),
-        ),
-      ),
-      reduce(o, identity),
-    ),
-    config,
-  );
-
-  const properties = flatten(
-    concat(
-      knownProperties,
-      map(
-        pipe(
-          nth(1),
-          ifElse(both(is(Array), all(is(String))), identity, always([])),
-        ),
-        filter(o(not, isNil), config.plugins || []),
-      ),
-    ),
   );
 
   const pattern = new RegExp(

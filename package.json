@@ -28,6 +28,7 @@
   "devDependencies": {
     "@babel/core": "^7.9.6",
     "@babel/preset-env": "^7.9.6",
+    "@hacss/compose-plugins": "^1.1.1",
     "@hacss/eslint-config": "^1.0.0",
     "@hacss/prettier-config": "^1.0.0",
     "babel-loader": "^8.1.0",
