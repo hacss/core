@@ -1,7 +1,7 @@
+/* eslint no-unused-vars: "error" */
 const { all: knownProperties } = require("known-css-properties");
 
 import {
-  addIndex,
   adjust,
   always,
   apply,
@@ -9,9 +9,8 @@ import {
   assoc,
   call,
   concat,
-  contains,
   defaultTo,
-  drop,
+  dissoc,
   equals,
   filter,
   flatten,
@@ -35,7 +34,6 @@ import {
   mergeRight,
   not,
   nth,
-  nthArg,
   o,
   pair,
   pipe,
@@ -47,7 +45,6 @@ import {
   replace,
   reverse,
   sortWith,
-  split,
   take,
   toPairs,
   tryCatch,
@@ -95,13 +92,6 @@ const matchAll = pattern => str => {
   return matches;
 };
 
-const balanced = pipe(
-  flip(repeat)(2),
-  adjust(0, pipe(match(/\{/g), length)),
-  adjust(1, pipe(match(/\}/g), length)),
-  apply(equals),
-);
-
 const pseudoWeight = pipe(
   map(
     flip(indexOf)([
@@ -116,12 +106,12 @@ const pseudoWeight = pipe(
   reduce(max, -1),
 );
 
-const parseDeclarations = pipe(
-  split(";"),
-  filter(o(not, isEmpty)),
-  map(pipe(match(/([^:]+):(.+)/), drop(1))),
-  fromPairs,
-);
+const parseDeclarations = properties => {
+  const property = join("|", properties);
+  const value = "(([^\\s'{};]+)|'[^\\s']+'|\"[^\\s\"]+\")+";
+  const pattern = new RegExp(`(${property}):(${value})`);
+  return pipe(matchAll(pattern), map(props([1, 2])), fromPairs);
+};
 
 const applyFixes = map(
   pipe(
@@ -138,6 +128,54 @@ const stringifyDeclarations = pipe(
   map(o(flip(concat)(";"), join(":"))),
   join(""),
 );
+
+const mkPattern = (properties, mediaQueries = []) => {
+  const nexpr = "[0-9\\+\\-n]+";
+  const partialPseudoClasses = join("|", [
+    ":active",
+    ":checked",
+    ":disabled",
+    ":empty",
+    ":enabled",
+    ":first-child",
+    ":first-of-type",
+    ":focus",
+    ":hover",
+    ":in-range",
+    ":invalid",
+    ":last-child",
+    ":last-of-type",
+    ":link",
+    ":only-of-type",
+    ":only-child",
+    ":optional",
+    ":out-of-range",
+    ":read-only",
+    ":read-write",
+    ":required",
+    ":root",
+    ":target",
+    ":valid",
+    ":visited",
+    ...["child", "last-child", "last-of-type", "of-type"].map(
+      x => `:nth-${x}\\(${nexpr}\\)`,
+    ),
+    ":lang([a-z]{2}([A-Za-z]{2})?)",
+  ]);
+  const pseudoClasses = `${partialPseudoClasses}|:not\\((${partialPseudoClasses})+\\)`;
+  const pseudoElements =
+    "::after|::before|::first-letter|::first-line|::selection";
+  const property = join("|", properties);
+  const value = "(([^\\s'{};]+)|'[^\\s']*'|\"[^\\s\"]*\")+";
+  const declaration = `(${property}):(${value})`;
+  const declarations = `(${declaration};)+`;
+  const base = `((${pseudoClasses}|${pseudoElements})+){(${declarations})}|(${declarations})`;
+  const context = `([\\w\\-]+)((${pseudoClasses})*)([_+>])`;
+  const baseWithContext = `(${context})?(${base})`;
+  return new RegExp(
+    `@(${join("|", mediaQueries)}){${baseWithContext}}|${baseWithContext}`,
+  );
+};
 
 const build = config => {
   const [applyPlugins, properties] = call(
@@ -163,24 +201,26 @@ const build = config => {
     config.mediaQueries || [],
   );
 
-  const pattern = new RegExp(
-    `(@([\\-\\w]+){)?(([\\-\\w]+(:[^\\s]+)?)([_+>]))?((:[^\\s{]+){)?(((${join(
-      "|",
-      properties,
-    )}):[^\\s\\{\\};]+;)+)[}]*`,
-  );
+  const pattern = mkPattern(properties, keys(mediaQueries));
 
   return pipe(
     matchAll(pattern),
-    filter(o(balanced, head)),
     uniqBy(head),
     map(
       pipe(
-        addIndex(filter)(pipe(nthArg(1), flip(contains)([0, 2, 4, 6, 8, 9]))),
+        flip(repeat)(7),
+        adjust(0, prop(0)),
+        adjust(1, prop(1)),
+        adjust(2, pipe(props([3, 33]), filter(identity), head)),
+        adjust(3, pipe(props([4, 34]), filter(identity), head)),
+        adjust(4, pipe(props([11, 39, 41]), filter(identity), head)),
+        adjust(5, pipe(props([13, 43]), filter(identity), head)),
+        adjust(6, pipe(props([20, 26, 50, 56]), filter(identity), head)),
         zip([
           "className",
           "mediaQuery",
-          "context",
+          "contextName",
+          "contextPseudos",
           "operator",
           "pseudos",
           "declarations",
@@ -196,7 +236,12 @@ const build = config => {
         ),
       ),
       ascend(
-        pipe(prop("context"), defaultTo(""), match(/:[^:]+/g), pseudoWeight),
+        pipe(
+          prop("contextPseudos"),
+          defaultTo(""),
+          match(/:[^:]+/g),
+          pseudoWeight,
+        ),
       ),
       ascend(
         pipe(prop("pseudos"), defaultTo(""), match(/:[^:]+/g), pseudoWeight),
@@ -210,6 +255,17 @@ const build = config => {
         adjust(
           1,
           pipe(
+            computeField(
+              "context",
+              pipe(
+                props(["contextName", "contextPseudos"]),
+                map(defaultTo("")),
+                join(""),
+                when(isEmpty, always(null)),
+              ),
+            ),
+            dissoc("contextName"),
+            dissoc("contextPseudos"),
             applyRecord({
               className: pipe(o(concat("."), CSS.escape), pair(null)),
               context: pipe(
@@ -218,7 +274,7 @@ const build = config => {
                 pair(null),
               ),
               declarations: pipe(
-                parseDeclarations,
+                parseDeclarations(properties),
                 applyFixes,
                 tryCatch(
                   pipe(applyPlugins, stringifyDeclarations, pair(null)),
@@ -255,6 +311,7 @@ const build = config => {
                 computeField(
                   "css",
                   pipe(
+                    identity,
                     map(nth(1)),
                     flip(repeat)(2),
                     adjust(
