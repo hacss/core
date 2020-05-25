@@ -1,5 +1,6 @@
 module.exports = {
   extends: "@hacss",
+  root: true,
   env: {
     commonjs: true,
     browser: true,

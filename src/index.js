@@ -204,6 +204,7 @@ const build = config => {
   const pattern = mkPattern(properties, keys(mediaQueries));
 
   return pipe(
+    replace(/&gt;/g, ">"),
     matchAll(pattern),
     uniqBy(head),
     map(

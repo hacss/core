@@ -45,7 +45,7 @@ process.stdout.write(
     },
   )
     .css.split("\n")
-    .map(x => x.match(/[^\{]+/)[0]);
+    .map(x => x.match(/[^{]+/)[0]);
 
   assert.deepEqual(actual, ["@media LARGE", "@media MEDIUM", "@media SMALL"]);
 }
@@ -99,6 +99,15 @@ process.stdout.write("* A scope is added to each rule if specified...");
 assert.equal(
   hacss("color:red;", { scope: "#foo" }).css.match(/\S+/)[0],
   "#foo",
+);
+process.stdout.write("success.\n");
+
+process.stdout.write(
+  "* &gt; HTML entity is decoded for immediate-child selection...",
+);
+assert.equal(
+  hacss("item&gt;color:red;").css,
+  ".item > .item\\>color\\:red\\;{color:red;}",
 );
 process.stdout.write("success.\n");
 
