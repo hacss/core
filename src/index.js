@@ -140,6 +140,7 @@ const mkPattern = (properties, mediaQueries = []) => {
     ":first-child",
     ":first-of-type",
     ":focus",
+    ":focus-within",
     ":hover",
     ":in-range",
     ":invalid",
