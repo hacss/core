@@ -223,7 +223,7 @@ const build = config => {
           "mediaQuery",
           "contextName",
           "contextPseudos",
-          "operator",
+          "combinator",
           "pseudos",
           "declarations",
         ]),
@@ -300,7 +300,7 @@ const build = config => {
                   ),
                 ),
               ),
-              operator: pipe(
+              combinator: pipe(
                 flip(prop)({ _: " ", "+": " + ", ">": " > " }),
                 defaultTo(null),
                 pair(null),
@@ -333,7 +333,7 @@ const build = config => {
                         }),
                         props([
                           "context",
-                          "operator",
+                          "combinator",
                           "className",
                           "pseudos",
                           "declarations",
@@ -374,7 +374,7 @@ const build = config => {
                           css: "CSS output",
                           declarations: "declarations",
                           mediaQuery: "media query",
-                          operator: "context operator",
+                          combinator: "combinator",
                           pseudos: "pseudos",
                         }),
                         when(o(not, isNil), concat("Error in ")),
