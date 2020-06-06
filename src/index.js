@@ -174,7 +174,7 @@ const mkPattern = (properties, mediaQueries = []) => {
   const base = `((${mkPseudoClasses(
     concat(pseudoClassBase, [":intersection\\([\\w\\-]+\\)"]),
   )}|${pseudoElements})+){(${declarations})}|(${declarations})`;
-  const context = `([\\w\\-]+)((${mkPseudoClasses(pseudoClassBase)})*)([_+>])`;
+  const context = `([\\w\\-]+)((${mkPseudoClasses(pseudoClassBase)})*)([~_+>])`;
   const baseWithContext = `(${context})?(${base})`;
   return new RegExp(
     `@(${join("|", mediaQueries)}){${baseWithContext}}|${baseWithContext}`,
@@ -304,7 +304,7 @@ const build = config => {
                 ),
               ),
               combinator: pipe(
-                flip(prop)({ _: " ", "+": " + ", ">": " > " }),
+                flip(prop)({ _: " ", "~": " ~ ", "+": " + ", ">": " > " }),
                 defaultTo(null),
                 pair(null),
               ),

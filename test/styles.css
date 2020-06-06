@@ -8,6 +8,7 @@
 .background\:\#fff\;{background:#fff;}
 .border\:0\;{border:0;}
 .cbx:not(:checked) + .cbx\:not\(\:checked\)\+text-decoration\:line-through\;{text-decoration:line-through;}
+.cbx:not(:checked) ~ .cbx\:not\(\:checked\)\~text-decoration\:line-through\;{text-decoration:line-through;}
 .color\:\#000\;{color:#000;}
 .color\:\#fff\;{color:#fff;}
 .display\:flex\;{display:flex;}
