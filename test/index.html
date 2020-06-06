@@ -74,6 +74,12 @@
   </section>
   <section>
     <h2 class="font-weight:400; font-size:28px;">Pseudo Classes</h2>
+    <p class="foo :intersection(foo){color:#00c;}">
+      This paragraph should be blue.
+    </p>
+    <p class=":not(:intersection(foo)){color:#c00;}">
+      This paragraph should be red.
+    </p>
     <p>
       The first row below shows how the button should appear in various
       states. The second shows a button that should match each of these

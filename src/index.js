@@ -45,6 +45,7 @@ import {
   replace,
   reverse,
   sortWith,
+  startsWith,
   take,
   toPairs,
   tryCatch,
@@ -131,7 +132,7 @@ const stringifyDeclarations = pipe(
 
 const mkPattern = (properties, mediaQueries = []) => {
   const nexpr = "[0-9\\+\\-n]+";
-  const partialPseudoClasses = join("|", [
+  const pseudoClassBase = [
     ":active",
     ":checked",
     ":disabled",
@@ -162,16 +163,18 @@ const mkPattern = (properties, mediaQueries = []) => {
       x => `:nth-${x}\\(${nexpr}\\)`,
     ),
     ":lang([a-z]{2}([A-Za-z]{2})?)",
-  ]);
-  const pseudoClasses = `${partialPseudoClasses}|:not\\((${partialPseudoClasses})+\\)`;
+  ];
+  const mkPseudoClasses = x => `${join("|", x)}|:not\\((${join("|", x)})+\\)`;
   const pseudoElements =
     "::after|::before|::first-letter|::first-line|::selection";
   const property = join("|", properties);
   const value = "(([^\\s'{};]+)|'[^\\s']*'|\"[^\\s\"]*\")+";
   const declaration = `(${property}):(${value})`;
   const declarations = `(${declaration};)+`;
-  const base = `((${pseudoClasses}|${pseudoElements})+){(${declarations})}|(${declarations})`;
-  const context = `([\\w\\-]+)((${pseudoClasses})*)([_+>])`;
+  const base = `((${mkPseudoClasses(
+    concat(pseudoClassBase, [":intersection\\([\\w\\-]+\\)"]),
+  )}|${pseudoElements})+){(${declarations})}|(${declarations})`;
+  const context = `([\\w\\-]+)((${mkPseudoClasses(pseudoClassBase)})*)([_+>])`;
   const baseWithContext = `(${context})?(${base})`;
   return new RegExp(
     `@(${join("|", mediaQueries)}){${baseWithContext}}|${baseWithContext}`,
@@ -305,7 +308,10 @@ const build = config => {
                 defaultTo(null),
                 pair(null),
               ),
-              pseudos: pair(null),
+              pseudos: pipe(
+                when(o(not, isNil), match(/:not\(:[^:]+\)|:{1,2}[^:]+/g)),
+                pair(null),
+              ),
             }),
             when(
               pipe(filter(nth(0)), keys, length, equals(0)),
@@ -328,13 +334,52 @@ const build = config => {
                     adjust(
                       1,
                       pipe(
+                        computeField(
+                          "intersections",
+                          pipe(
+                            prop("pseudos"),
+                            defaultTo([]),
+                            filter(startsWith(":intersection")),
+                            map(
+                              pipe(
+                                match(/:intersection\((.*)\)/),
+                                nth(1),
+                                concat("."),
+                              ),
+                            ),
+                            ifElse(
+                              pipe(length, equals(0)),
+                              always(null),
+                              join(""),
+                            ),
+                          ),
+                        ),
                         applyRecord({
+                          pseudos: when(
+                            o(not, isNil),
+                            pipe(
+                              map(
+                                when(
+                                  startsWith(":not(:intersection("),
+                                  pipe(
+                                    match(/:intersection\((.*?)\)/),
+                                    nth(1),
+                                    concat(":not(."),
+                                    flip(concat)(")"),
+                                  ),
+                                ),
+                              ),
+                              filter(o(not, startsWith(":intersection"))),
+                              join(""),
+                            ),
+                          ),
                           declarations: pipe(concat("{"), flip(concat)("}")),
                         }),
                         props([
                           "context",
                           "combinator",
                           "className",
+                          "intersections",
                           "pseudos",
                           "declarations",
                         ]),

@@ -1,4 +1,6 @@
 .\:\:after\{content\:\'Yes\'\;font-weight\:700\;\}::after{content:'Yes';font-weight:700;}
+.\:intersection\(foo\)\{color\:\#00c\;\}.foo{color:#00c;}
+.\:not\(\:intersection\(foo\)\)\{color\:\#c00\;\}:not(.foo){color:#c00;}
 .background\:\#009\;{background:#009;}
 .background\:\#00c\;{background:#00c;}
 .background\:\#999\;{background:#999;}
@@ -39,4 +41,3 @@
 @media only screen and (max-width: 599px){.\@small\{display\:inline\;\}{display:inline;}}
 @media only screen and (min-width: 600px) and (max-width: 1199px){.\@medium\{display\:inline\;\}{display:inline;}}
 @media only screen and (min-width: 1200px){.\@large\{display\:inline\;\}{display:inline;}}
-@media not all{.\@doesnotexist\{display\:block\;\}{display:block;}}
