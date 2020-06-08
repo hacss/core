@@ -166,7 +166,7 @@ const mkPattern = (properties, mediaQueries = []) => {
   ];
   const mkPseudoClasses = x => `${join("|", x)}|:not\\((${join("|", x)})+\\)`;
   const pseudoElements =
-    "::after|::before|::first-letter|::first-line|::selection";
+    "::after|::before|::first-letter|::first-line|::placeholder|::selection";
   const property = join("|", properties);
   const value = "(([^\\s'{};]+)|'[^\\s']*'|\"[^\\s\"]*\")+";
   const declaration = `(${property}):(${value})`;
