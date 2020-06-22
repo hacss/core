@@ -113,6 +113,19 @@ process.stdout.write("success.\n");
 
 process.stdout.write("\n");
 
+process.stdout.write(
+  "* Arbitrary vendor-prefixed pseudo-elements are allowed...",
+);
+["ms", "moz", "o", "webkit"]
+  .flatMap(x => [`:-${x}-foo-bar`, `::-${x}-something`])
+  .forEach(x => {
+    assert.equal(
+      hacss(`${x}{color:red;}`).css,
+      `.${x.replace(/:/g, "\\:")}\\{color\\:red\\;\\}${x}{color:red;}`,
+    );
+  });
+process.stdout.write("success.\n");
+
 fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {
   if (err) throw err;
   fs.readFile(path.join(__dirname, "styles.css"), "utf8", function (

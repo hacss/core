@@ -165,8 +165,20 @@ const mkPattern = (properties, mediaQueries = []) => {
     ":lang([a-z]{2}([A-Za-z]{2})?)",
   ];
   const mkPseudoClasses = x => `${join("|", x)}|:not\\((${join("|", x)})+\\)`;
-  const pseudoElements =
-    "::after|::before|::first-letter|::first-line|::placeholder|::selection";
+  const pseudoElements = join(
+    "|",
+    concat(
+      map(concat("::"), [
+        "after",
+        "before",
+        "first-letter",
+        "first-line",
+        "placeholder",
+        "selection",
+      ]),
+      map(x => `::?-${x}-[a-z][a-z\\-]+[a-z]`, ["moz", "ms", "o", "webkit"]),
+    ),
+  );
   const property = join("|", properties);
   const value = "(([^\\s'{};]+)|'[^\\s']*'|\"[^\\s\"]*\")+";
   const declaration = `(${property}):(${value})`;
