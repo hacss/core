@@ -109,7 +109,7 @@ const pseudoWeight = pipe(
 
 const parseDeclarations = properties => {
   const property = join("|", properties);
-  const value = "(([^\\s'{};]+)|'[^\\s']+'|\"[^\\s\"]+\")+";
+  const value = "(([^\\s'{};]+)|'[^\\s']*'|\"[^\\s\"]*\")+";
   const pattern = new RegExp(`(${property}):(${value})`);
   return pipe(matchAll(pattern), map(props([1, 2])), fromPairs);
 };

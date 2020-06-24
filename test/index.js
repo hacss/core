@@ -126,6 +126,15 @@ process.stdout.write(
   });
 process.stdout.write("success.\n");
 
+process.stdout.write(
+  "Allows empty string values for e.g. pseudo-element content.",
+);
+assert.equal(
+  hacss("::after{content:'';}").css,
+  ".\\:\\:after\\{content\\:\\'\\'\\;\\}::after{content:'';}",
+);
+process.stdout.write("success.\n");
+
 fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {
   if (err) throw err;
   fs.readFile(path.join(__dirname, "styles.css"), "utf8", function (
