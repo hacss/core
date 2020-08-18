@@ -111,8 +111,6 @@ assert.equal(
 );
 process.stdout.write("success.\n");
 
-process.stdout.write("\n");
-
 process.stdout.write(
   "* Arbitrary vendor-prefixed pseudo-elements are allowed...",
 );
@@ -127,13 +125,22 @@ process.stdout.write(
 process.stdout.write("success.\n");
 
 process.stdout.write(
-  "Allows empty string values for e.g. pseudo-element content.",
+  "* Allows empty string values for e.g. pseudo-element content.",
 );
 assert.equal(
   hacss("::after{content:'';}").css,
   ".\\:\\:after\\{content\\:\\'\\'\\;\\}::after{content:'';}",
 );
 process.stdout.write("success.\n");
+
+process.stdout.write("* Intersection selectors can be used for context.");
+assert.equal(
+  hacss("input:not(:intersection(success)):intersection(error)~color:red;").css,
+  ".input.error:not(.success) ~ .input\\:not\\(\\:intersection\\(success\\)\\)\\:intersection\\(error\\)\\~color\\:red\\;{color:red;}",
+);
+process.stdout.write("...success.\n");
+
+process.stdout.write("\n");
 
 fs.readFile(path.join(__dirname, "index.html"), "utf8", function (err, code) {
   if (err) throw err;

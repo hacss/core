@@ -10,7 +10,6 @@ import {
   call,
   concat,
   defaultTo,
-  dissoc,
   equals,
   filter,
   flatten,
@@ -163,6 +162,7 @@ const mkPattern = (properties, mediaQueries = []) => {
       x => `:nth-${x}\\(${nexpr}\\)`,
     ),
     ":lang([a-z]{2}([A-Za-z]{2})?)",
+    ":intersection\\([\\w\\-]+\\)",
   ];
   const mkPseudoClasses = x => `${join("|", x)}|:not\\((${join("|", x)})+\\)`;
   const pseudoElements = join(
@@ -184,7 +184,7 @@ const mkPattern = (properties, mediaQueries = []) => {
   const declaration = `(${property}):(${value})`;
   const declarations = `(${declaration};)+`;
   const base = `((${mkPseudoClasses(
-    concat(pseudoClassBase, [":intersection\\([\\w\\-]+\\)"]),
+    pseudoClassBase,
   )}|${pseudoElements})+){(${declarations})}|(${declarations})`;
   const context = `([\\w\\-]+)((${mkPseudoClasses(pseudoClassBase)})*)([~_+>])`;
   const baseWithContext = `(${context})?(${base})`;
@@ -272,24 +272,13 @@ const build = config => {
         adjust(
           1,
           pipe(
-            computeField(
-              "context",
-              pipe(
-                props(["contextName", "contextPseudos"]),
-                map(defaultTo("")),
-                join(""),
-                when(isEmpty, always(null)),
-              ),
-            ),
-            dissoc("contextName"),
-            dissoc("contextPseudos"),
             applyRecord({
-              className: pipe(o(concat("."), CSS.escape), pair(null)),
-              context: pipe(
-                when(o(not, isNil), concat(".")),
-                defaultTo(null),
+              contextName: pair(null),
+              contextPseudos: pipe(
+                when(o(not, isNil), match(/:not\(:[^:]+\)|:{1,2}[^:]+/g)),
                 pair(null),
               ),
+              className: pipe(o(concat("."), CSS.escape), pair(null)),
               declarations: pipe(
                 parseDeclarations(properties),
                 applyFixes,
@@ -347,6 +336,26 @@ const build = config => {
                       1,
                       pipe(
                         computeField(
+                          "contextIntersections",
+                          pipe(
+                            prop("contextPseudos"),
+                            defaultTo([]),
+                            filter(startsWith(":intersection")),
+                            map(
+                              pipe(
+                                match(/:intersection\((.*)\)/),
+                                nth(1),
+                                concat("."),
+                              ),
+                            ),
+                            ifElse(
+                              pipe(length, equals(0)),
+                              always(null),
+                              join(""),
+                            ),
+                          ),
+                        ),
+                        computeField(
                           "intersections",
                           pipe(
                             prop("pseudos"),
@@ -367,6 +376,24 @@ const build = config => {
                           ),
                         ),
                         applyRecord({
+                          contextPseudos: when(
+                            o(not, isNil),
+                            pipe(
+                              map(
+                                when(
+                                  startsWith(":not(:intersection("),
+                                  pipe(
+                                    match(/:intersection\((.*?)\)/),
+                                    nth(1),
+                                    concat(":not(."),
+                                    flip(concat)(")"),
+                                  ),
+                                ),
+                              ),
+                              filter(o(not, startsWith(":intersection"))),
+                              join(""),
+                            ),
+                          ),
                           pseudos: when(
                             o(not, isNil),
                             pipe(
@@ -387,6 +414,18 @@ const build = config => {
                           ),
                           declarations: pipe(concat("{"), flip(concat)("}")),
                         }),
+                        computeField(
+                          "context",
+                          pipe(
+                            props([
+                              "contextName",
+                              "contextIntersections",
+                              "contextPseudos",
+                            ]),
+                            join(""),
+                            when(o(not, isEmpty), concat(".")),
+                          ),
+                        ),
                         props([
                           "context",
                           "combinator",
