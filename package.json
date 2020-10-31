@@ -2,7 +2,7 @@
   "name": "@hacss/core",
   "version": "3.0.0",
   "description": "The core Hacss library",
-  "main": "hacss.umd.js",
+  "main": "dist/hacss.umd.js",
   "scripts": {
     "prepublishOnly": "spago build && rollup -c",
     "test": "spago test"
