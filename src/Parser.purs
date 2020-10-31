@@ -82,56 +82,61 @@ pseudoClass =
           ]
       in
         F.oneOf (string <$> alts) `withErrorMessage` altError alts
+
     lang =
       let
         letter = satisfy isLetter
-      in do
-        _ <- string "lang(" <* lookAhead letter
-        x <- S.fromCharArray <$> A.some (letter <|> char '-' <* lookAhead letter)
-        _ <- char ')'
-        pure $ "lang(" <> x <> ")"
+      in
+        do
+          _ <- string "lang(" <* lookAhead letter
+          x <- S.fromCharArray <$> A.some (letter <|> char '-' <* lookAhead letter)
+          _ <- char ')'
+          pure $ "lang(" <> x <> ")"
+
     nth =
       let
-        types = ["child", "last-child", "last-of-type", "of-type"]
-        formula = flip withErrorMessage "even, odd or valid formula"
-          $   string "even"
-          <|> string "odd"
-          <|> do
-            neg <- (const true <$> char '-') <|> pure false
-            f <- try do
-                   a <- A.many $ satisfy isDigit
-                   n <- char 'n'
-                   plus <- P.oneOf ['+', '-']
-                   b <- A.some $ satisfy isDigit
-                   pure $ S.fromCharArray $ a <> ['n'] <> [plus] <> b
-                 <|>
-                   try do
-                     a <- A.many $ satisfy isDigit
-                     n <- char 'n'
-                     pure $ S.fromCharArray a <> "n"
-                 <|>
-                   (S.fromCharArray <$> A.some (satisfy isDigit))
-            pure $ (if neg then "-" else "") <> f
-      in do
-        _ <- string "nth-"
-        x <- F.oneOf (string <$> types) `withErrorMessage` altError types
-        _ <- char '('
-        f <- formula
-        _ <- char ')'
-        pure $ "nth-" <> x <> "(" <> f <> ")"
+        types = [ "child", "last-child", "last-of-type", "of-type" ]
+
+        formula =
+          flip withErrorMessage "even, odd or valid formula"
+            $ string "even"
+            <|> string "odd"
+            <|> do
+                neg <- (const true <$> char '-') <|> pure false
+                f <-
+                  try do
+                    a <- A.many $ satisfy isDigit
+                    n <- char 'n'
+                    plus <- P.oneOf [ '+', '-' ]
+                    b <- A.some $ satisfy isDigit
+                    pure $ S.fromCharArray $ a <> [ 'n' ] <> [ plus ] <> b
+                    <|> try do
+                        a <- A.many $ satisfy isDigit
+                        n <- char 'n'
+                        pure $ S.fromCharArray a <> "n"
+                    <|> (S.fromCharArray <$> A.some (satisfy isDigit))
+                pure $ (if neg then "-" else "") <> f
+      in
+        do
+          _ <- string "nth-"
+          x <- F.oneOf (string <$> types) `withErrorMessage` altError types
+          _ <- char '('
+          f <- formula
+          _ <- char ')'
+          pure $ "nth-" <> x <> "(" <> f <> ")"
   in
     do
       _ <- string ":not("
       classNames <- A.many className
       pseudoClasses <- A.many pseudoClass
-      if A.null classNames && A.null pseudoClasses
-        then fail "class or pseudo-class"
-        else do
-          _ <- char ')'
-          pure $ PseudoClassNot { classNames, pseudoClasses }
-    <|> do
-      _ <- char ':'
-      PseudoClass <$> (nth <|> lang <|> basic)
+      if A.null classNames && A.null pseudoClasses then
+        fail "class or pseudo-class"
+      else do
+        _ <- char ')'
+        pure $ PseudoClassNot { classNames, pseudoClasses }
+      <|> do
+          _ <- char ':'
+          PseudoClass <$> (nth <|> lang <|> basic)
 
 pseudoElement :: forall m. Monad m => ParserT String m PseudoElement
 pseudoElement =
@@ -149,184 +154,201 @@ pseudoElement =
           ]
       in
         F.oneOf (string <$> alts) `withErrorMessage` altError alts
+
     prefixed =
       let
-        vendors = ["ms", "moz", "o", "webkit"]
-      in do
-        _ <- char '-'
-        prefix <- F.oneOf (string <$> vendors) `withErrorMessage` altError vendors
-        _ <- char '-'
-        element <- (:) <$> lower
-                       <*> L.many (lower <|> char '-' <* lookAhead lower)
-        pure $ "-" <> prefix <> "-" <> (S.fromCharArray $ A.fromFoldable element)
-  in do
-    _ <- replicateM 2 $ char ':'
-    PseudoElement <$> (standard <|> prefixed)
+        vendors = [ "ms", "moz", "o", "webkit" ]
+      in
+        do
+          _ <- char '-'
+          prefix <- F.oneOf (string <$> vendors) `withErrorMessage` altError vendors
+          _ <- char '-'
+          element <-
+            (:) <$> lower
+              <*> L.many (lower <|> char '-' <* lookAhead lower)
+          pure $ "-" <> prefix <> "-" <> (S.fromCharArray $ A.fromFoldable element)
+  in
+    do
+      _ <- replicateM 2 $ char ':'
+      PseudoElement <$> (standard <|> prefixed)
 
 combinator :: forall m. Monad m => ParserT String m Combinator
 combinator = combinator' <?> "combinator"
   where
-    combinator' = ancestor <|> parent <|> adjacentSibling <|> generalSibling
-    ancestor = const Ancestor <$> char '_'
-    parent = const Parent <$> char '>'
-    adjacentSibling = const AdjacentSibling <$> char '+'
-    generalSibling = const GeneralSibling <$> char '~'
+  combinator' = ancestor <|> parent <|> adjacentSibling <|> generalSibling
 
-atScope
-  :: forall r m
-   . MonadAsk { knownAtScopes :: Array AtScope | r } m
-  => ParserT String m AtScope
+  ancestor = const Ancestor <$> char '_'
+
+  parent = const Parent <$> char '>'
+
+  adjacentSibling = const AdjacentSibling <$> char '+'
+
+  generalSibling = const GeneralSibling <$> char '~'
+
+atScope ::
+  forall r m.
+  MonadAsk { knownAtScopes :: Array AtScope | r } m =>
+  ParserT String m AtScope
 atScope = do
   _ <- char '@'
   known <- lift $ asks $ map (un AtScope) <<< _.knownAtScopes
   AtScope <$> F.oneOf (string <$> known) `withErrorMessage` altError known
 
-property
-  :: forall r m
-   . MonadAsk { knownProperties :: Array Property | r } m
-  => ParserT String m Property
+property ::
+  forall r m.
+  MonadAsk { knownProperties :: Array Property | r } m =>
+  ParserT String m Property
 property = do
   known <- lift $ asks $ A.reverse <<< A.sortWith S.length <<< map (un Property) <<< _.knownProperties
   Property <$> F.oneOf (string <$> known) `withErrorMessage` altError known
 
-value
-  :: forall r m
-   . MonadAsk { knownVariables :: Array Variable | r } m
-  => ParserT String m Value
+value ::
+  forall r m.
+  MonadAsk { knownVariables :: Array Variable | r } m =>
+  ParserT String m Value
 value = Value <$> A.some (calc <|> url <|> simple)
   where
-    whitespaceChars = [' ', '\t', '\r', '\n']
-    var = do
-      knownVariableNames <- lift $ asks $ map variableName <<< _.knownVariables
-      v <- char '$' *> (F.oneOf $ string <$> knownVariableNames)
-      pure $ Var $ Variable v
-    dollar = do
-      knownVariableNames <- lift $ asks $ map variableName <<< _.knownVariables
-      char '$' <* notFollowedBy (F.oneOf $ string <$> knownVariableNames)
-    calc = Calc <<< A.reverse <<< A.fromFoldable <$> (string "calc(" *> _calc 1 Nil Nil)
-      where
-        _calc i acc litAcc = fix \_ ->
-          try do
-            v <- var
-            let
-              acc' =
-                case litAcc of
-                  Nil ->
-                    v : acc
-                  x ->
-                    v : (Lit $ S.fromCharArray $ A.reverse $ A.fromFoldable $ x) : acc
-            _calc i acc' Nil
-          <|>
-          do
-            x <- (noneOf $ ['$', ';', '}'] <> whitespaceChars) <|> dollar
-            case x of
-              '(' ->
-                _calc (i + 1) acc $ x : litAcc
-              ')' | i > 1 ->
-                _calc (i - 1) acc $ x : litAcc
-              ')' | otherwise -> 
-                pure $ (Lit $ S.fromCharArray $ A.reverse $ A.fromFoldable $ litAcc) : acc
-              '+' ->
-                _calc i acc $ ' ' : '+' : ' ' : litAcc
-              '-' ->
-                _calc i acc $ ' ' : '-' : ' ' : litAcc
-              '*' ->
-                _calc i acc $ ' ' : '*' : ' ' : litAcc
-              '/' ->
-                _calc i acc $ ' ' : '/' : ' ' : litAcc
-              _ -> 
-                _calc i acc $ x : litAcc
-          <|>
-          pure acc
-    url = URL <$> (quotedURL <|> unquotedURL)
-      where
-        quotedURL = do
-          _ <- string "url('"
-          x <- A.some (
-                 try var
-                 <|> (Lit <<< S.fromCharArray <$> A.some (
-                   try dollar
-                   <|> (const ' ' <$> string "__")
-                   <|> noneOf (['\'', '$'] <> whitespaceChars)
-                 ))
-               )
-          _ <- string "')"
-          pure $ Quoted x
-        unquotedURL = do
-          _ <- string "url("
-          x <- A.some (
-                 try var
-                 <|> (Lit <<< S.fromCharArray <$> A.some (
-                   try dollar
-                   <|> (const ' ' <$> string "__")
-                   <|> noneOf (['\'', ')', '}', ';', '$'] <> whitespaceChars)
-                 ))
-               )
-          _ <- char ')'
-          pure $ Unquoted x
-    simple = Simple <$> (quotedSimple <|> unquotedSimple)
-      where
-        quotedSimple = do
-          _ <- char '\''
-          x <- A.some (
-                 try var
-                 <|> (Lit <<< S.fromCharArray <$> A.some (
-                   try dollar
-                   <|> (const ' ' <$> string "__")
-                   <|> noneOf (['\'', '$'] <> whitespaceChars)
-                 ))
-               )
-          _ <- char '\''
-          pure $ Quoted x
-        unquotedSimple = do
-          x <- A.some (
-                 try var
-                 <|> (Lit <<< S.fromCharArray <$> A.some (
-                       try dollar
-                       <|> (const ' ' <$> string "__")
-                       <|> noneOf (['\'', ')', '}', ';', '$', 'c', 'u'] <> whitespaceChars)
-                       <|> do
-                         _ <- lookAhead (char 'c') <* notFollowedBy calc
-                         char 'c'
-                       <|> do
-                         _ <- lookAhead (char 'u') <* notFollowedBy url
-                         char 'u'
-                     ))
-               )
-          pure $ Unquoted x
+  whitespaceChars = [ ' ', '\t', '\r', '\n' ]
 
-declaration
-  :: forall r m
-   . MonadAsk
-     { knownProperties :: Array Property
-     , knownVariables :: Array Variable
-     | r
-     }
-     m
-  => ParserT String m Declaration
+  var = do
+    knownVariableNames <- lift $ asks $ map variableName <<< _.knownVariables
+    v <- char '$' *> (F.oneOf $ string <$> knownVariableNames)
+    pure $ Var $ Variable v
+
+  dollar = do
+    knownVariableNames <- lift $ asks $ map variableName <<< _.knownVariables
+    char '$' <* notFollowedBy (F.oneOf $ string <$> knownVariableNames)
+
+  calc = Calc <<< A.reverse <<< A.fromFoldable <$> (string "calc(" *> _calc 1 Nil Nil)
+    where
+    _calc i acc litAcc =
+      fix \_ ->
+        try do
+          v <- var
+          let
+            acc' = case litAcc of
+              Nil -> v : acc
+              x -> v : (Lit $ S.fromCharArray $ A.reverse $ A.fromFoldable $ x) : acc
+          _calc i acc' Nil
+          <|> do
+              x <- (noneOf $ [ '$', ';', '}' ] <> whitespaceChars) <|> dollar
+              case x of
+                '(' -> _calc (i + 1) acc $ x : litAcc
+                ')'
+                  | i > 1 -> _calc (i - 1) acc $ x : litAcc
+                ')'
+                  | otherwise -> pure $ (Lit $ S.fromCharArray $ A.reverse $ A.fromFoldable $ litAcc) : acc
+                '+' -> _calc i acc $ ' ' : '+' : ' ' : litAcc
+                '-' -> _calc i acc $ ' ' : '-' : ' ' : litAcc
+                '*' -> _calc i acc $ ' ' : '*' : ' ' : litAcc
+                '/' -> _calc i acc $ ' ' : '/' : ' ' : litAcc
+                _ -> _calc i acc $ x : litAcc
+          <|> pure acc
+
+  url = URL <$> (quotedURL <|> unquotedURL)
+    where
+    quotedURL = do
+      _ <- string "url('"
+      x <-
+        A.some
+          ( try var
+              <|> ( Lit <<< S.fromCharArray
+                    <$> A.some
+                        ( try dollar
+                            <|> (const ' ' <$> string "__")
+                            <|> noneOf ([ '\'', '$' ] <> whitespaceChars)
+                        )
+                )
+          )
+      _ <- string "')"
+      pure $ Quoted x
+
+    unquotedURL = do
+      _ <- string "url("
+      x <-
+        A.some
+          ( try var
+              <|> ( Lit <<< S.fromCharArray
+                    <$> A.some
+                        ( try dollar
+                            <|> (const ' ' <$> string "__")
+                            <|> noneOf ([ '\'', ')', '}', ';', '$' ] <> whitespaceChars)
+                        )
+                )
+          )
+      _ <- char ')'
+      pure $ Unquoted x
+
+  simple = Simple <$> (quotedSimple <|> unquotedSimple)
+    where
+    quotedSimple = do
+      _ <- char '\''
+      x <-
+        A.some
+          ( try var
+              <|> ( Lit <<< S.fromCharArray
+                    <$> A.some
+                        ( try dollar
+                            <|> (const ' ' <$> string "__")
+                            <|> noneOf ([ '\'', '$' ] <> whitespaceChars)
+                        )
+                )
+          )
+      _ <- char '\''
+      pure $ Quoted x
+
+    unquotedSimple = do
+      x <-
+        A.some
+          ( try var
+              <|> ( Lit <<< S.fromCharArray
+                    <$> A.some
+                        ( try dollar
+                            <|> (const ' ' <$> string "__")
+                            <|> noneOf ([ '\'', ')', '}', ';', '$', 'c', 'u' ] <> whitespaceChars)
+                            <|> do
+                                _ <- lookAhead (char 'c') <* notFollowedBy calc
+                                char 'c'
+                            <|> do
+                                _ <- lookAhead (char 'u') <* notFollowedBy url
+                                char 'u'
+                        )
+                )
+          )
+      pure $ Unquoted x
+
+declaration ::
+  forall r m.
+  MonadAsk
+    { knownProperties :: Array Property
+    , knownVariables :: Array Variable
+    | r
+    }
+    m =>
+  ParserT String m Declaration
 declaration = do
   p <- property
   _ <- char ':'
   v <- value
   pure $ Declaration $ Tuple p v
 
-context
-  :: forall m
-   . Monad m
-  => ParserT String m Context
+context ::
+  forall m.
+  Monad m =>
+  ParserT String m Context
 context = do
   classNames <- A.many className
   pseudoClasses <- A.many pseudoClass
-  if A.null classNames && A.null pseudoClasses
-    then fail "class or pseudo-class"
-    else do
-      combinator' <- combinator
-      pure { classNames, pseudoClasses, combinator: combinator' }
+  if A.null classNames && A.null pseudoClasses then
+    fail "class or pseudo-class"
+  else do
+    combinator' <- combinator
+    pure { classNames, pseudoClasses, combinator: combinator' }
 
-selector
-  :: forall m
-   . Monad m
-  => ParserT String m Selector
+selector ::
+  forall m.
+  Monad m =>
+  ParserT String m Selector
 selector = do
   ctx <- optionMaybe $ try context
   classNames <- A.many className
@@ -334,84 +356,81 @@ selector = do
   pe <- optionMaybe pseudoElement
   pure { context: ctx, classNames, pseudoClasses, pseudoElement: pe }
 
-
-rule
-  :: forall r m
-   . MonadAsk
-     { knownAtScopes :: Array AtScope
-     , knownProperties :: Array Property
-     , knownVariables :: Array Variable
-     | r
-     } m
-  => ParserT String m Rule
+rule ::
+  forall r m.
+  MonadAsk
+    { knownAtScopes :: Array AtScope
+    , knownProperties :: Array Property
+    , knownVariables :: Array Variable
+    | r
+    }
+    m =>
+  ParserT String m Rule
 rule = do
-    r <- try full <|> withAtScope <|> withSelector <|> onlyDeclarations
-    importance <- A.length <$> (A.many $ char '!')
-    pure
-      { atScope: r.atScope
-      , selector: r.selector
-      , declarations: r.declarations
-      , importance
-      }
-
+  r <- try full <|> withAtScope <|> withSelector <|> onlyDeclarations
+  importance <- A.length <$> (A.many $ char '!')
+  pure
+    { atScope: r.atScope
+    , selector: r.selector
+    , declarations: r.declarations
+    , importance
+    }
   where
+  onlyDeclarations = do
+    declarations <- A.some $ declaration <* char ';'
+    pure { atScope: Nothing, selector: Nothing, declarations }
 
-    onlyDeclarations = do
-       declarations <- A.some $ declaration <* char ';'
-       pure { atScope: Nothing, selector: Nothing, declarations } 
+  full = do
+    atScope' <- atScope
+    _ <- char '{'
+    selector' <- selector
+    _ <- char '{'
+    declarations <- A.fromFoldable <$> declaration `sepBy1` char ';'
+    _ <- string "}}"
+    pure { atScope: Just atScope', selector: Just selector', declarations }
 
-    full = do
-      atScope' <- atScope
-      _ <- char '{'
-      selector' <- selector
-      _ <- char '{'
-      declarations <- A.fromFoldable <$> declaration `sepBy1` char ';'
-      _ <- string "}}"
-      pure { atScope: Just atScope', selector: Just selector', declarations }
+  withAtScope = do
+    atScope' <- atScope
+    _ <- char '{'
+    declarations <- A.fromFoldable <$> declaration `sepBy1` char ';'
+    _ <- char '}'
+    pure { atScope: Just atScope', selector: Nothing, declarations }
 
-    withAtScope = do
-      atScope' <- atScope
-      _ <- char '{'
-      declarations <- A.fromFoldable <$> declaration `sepBy1` char ';'
-      _ <- char '}'
-      pure { atScope: Just atScope', selector: Nothing, declarations }
+  withSelector = do
+    selector' <- selector
+    _ <- char '{'
+    declarations <- A.fromFoldable <$> declaration `sepBy1` char ';'
+    _ <- char '}'
+    pure { atScope: Nothing, selector: Just selector', declarations }
 
-    withSelector = do
-      selector' <- selector
-      _ <- char '{'
-      declarations <- A.fromFoldable <$> declaration `sepBy1` char ';'
-      _ <- char '}'
-      pure { atScope: Nothing, selector: Just selector', declarations }
-
-rules
-  :: forall r m
-   . MonadAsk
-     { knownAtScopes :: Array AtScope
-     , knownProperties :: Array Property
-     , knownVariables :: Array Variable
-     | r
-     } m
-  => ParserT String m (Array Rule)
+rules ::
+  forall r m.
+  MonadAsk
+    { knownAtScopes :: Array AtScope
+    , knownProperties :: Array Property
+    , knownVariables :: Array Variable
+    | r
+    }
+    m =>
+  ParserT String m (Array Rule)
 rules = A.reverse <<< A.fromFoldable <<< L.nub <$> rules' Nil
   where
-    rules' acc = fix \_ ->
+  rules' acc =
+    fix \_ ->
       do
         r <- try rule
         rules' $ r : acc
-      <|>
-        (anyChar *> rules' acc)
-      <|>
-        pure acc
+        <|> (anyChar *> rules' acc)
+        <|> pure acc
 
 lower :: forall m. Monad m => ParserT String m Char
 lower = satisfy isLower
 
-altError
-  :: forall f a
-   . Foldable f
-  => Functor f
-  => Show a
-  => f a
-  -> String
-altError =
-  ("one of: " <> _) <<< S.joinWith ", " <<< A.fromFoldable <<< map show
+altError ::
+  forall f a.
+  Foldable f =>
+  Functor f =>
+  Show a =>
+  f a ->
+  String
+altError = ("one of: " <> _) <<< S.joinWith ", " <<< A.fromFoldable <<< map show

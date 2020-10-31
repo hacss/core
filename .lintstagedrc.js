@@ -1,6 +1,6 @@
 module.exports = {
   "**/*.purs": [
-    "purty format --write",
+    files => files.map(f => `purty format --write ${f}`),
     () => "spago test",
   ],
 };
