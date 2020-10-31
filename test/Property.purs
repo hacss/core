@@ -8,14 +8,16 @@ import Test.QuickCheck ((<?>))
 import Test.Spec (SpecT, it)
 import Test.Spec.QuickCheck (quickCheck)
 import Text.Parsing.Parser (runParserT)
-
 import Hacss.Parser (property) as P
 import Hacss.Printer (property) as R
 
 tests :: forall m. Monad m => SpecT Aff Unit m Unit
-tests = it "should parse and print properties consistently" $ quickCheck \x ->
-  let
-    e = Right x
-    a = runReader (runParserT (R.property x) P.property) { knownProperties: [x] }
-  in
-    a == e <?> "Failed given " <> show x <> ": " <> show a <> " /= " <> show e
+tests =
+  it "should parse and print properties consistently"
+    $ quickCheck \x ->
+        let
+          e = Right x
+
+          a = runReader (runParserT (R.property x) P.property) { knownProperties: [ x ] }
+        in
+          a == e <?> "Failed given " <> show x <> ": " <> show a <> " /= " <> show e

@@ -16,13 +16,15 @@ import Test.Hacss.PseudoClass (tests) as PseudoClass
 import Test.Hacss.PseudoElement (tests) as PseudoElement
 
 main :: Effect Unit
-main = launchAff_ $ runSpec [consoleReporter] do
-  describe "Hacss" do
-    ClassName.tests
-    Combinator.tests
-    PseudoClass.tests
-    PseudoElement.tests
-    AtScope.tests
-    Property.tests
-  describe "Parser" Parser.tests
-  describe "Printer" Printer.tests
+main =
+  launchAff_
+    $ runSpec [ consoleReporter ] do
+        describe "Hacss" do
+          ClassName.tests
+          Combinator.tests
+          PseudoClass.tests
+          PseudoElement.tests
+          AtScope.tests
+          Property.tests
+        describe "Parser" Parser.tests
+        describe "Printer" Printer.tests
