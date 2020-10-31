@@ -1,0 +1,14 @@
+.DS_Store
+.git/
+.github/
+.gitignore
+.lintstagedrc.js
+.spago/
+node_modules/
+output/
+packages.dhall
+rollup.config.js
+spago.dhall
+src/
+test/
+
