@@ -1,3 +1,6 @@
 module.exports = {
-  "**/*.purs": () => "spago test",
+  "**/*.purs": [
+    "purty format --write",
+    () => "spago test",
+  ],
 };
