@@ -4,6 +4,7 @@
   "description": "The core Hacss library",
   "main": "dist/hacss.umd.js",
   "scripts": {
+    "lint": "purty validate src && purty validate test",
     "prepublishOnly": "spago build && rollup -c",
     "test": "spago test"
   },
