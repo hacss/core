@@ -417,9 +417,10 @@ rules = A.reverse <<< A.fromFoldable <<< L.nub <$> rules' Nil
   where
   rules' acc =
     fix \_ ->
-      do
-        r <- try rule
-        rules' $ r : acc
+      ( do
+          r <- try rule
+          rules' $ r : acc
+      )
         <|> (anyChar *> rules' acc)
         <|> pure acc
 
