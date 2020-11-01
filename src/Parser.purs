@@ -4,6 +4,7 @@ import Prelude
 import Control.Alt ((<|>))
 import Control.Lazy (fix)
 import Control.Monad.Reader.Class (class MonadAsk, asks)
+import Control.Monad.Rec.Class (class MonadRec, whileJust)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (fromFoldable, length, many, null, reverse, some, sortWith) as A
 import Data.Char.Unicode (isDigit, isLetter, isLower)
@@ -19,7 +20,7 @@ import Data.String.Common (joinWith) as S
 import Data.Tuple (Tuple(..))
 import Text.Parsing.Parser (ParserT, fail)
 import Text.Parsing.Parser.Combinators ((<?>), lookAhead, notFollowedBy, optionMaybe, sepBy1, try, withErrorMessage)
-import Text.Parsing.Parser.String (anyChar, char, noneOf, satisfy, string)
+import Text.Parsing.Parser.String (anyChar, char, eof, noneOf, satisfy, string)
 import Text.Parsing.Parser.String (oneOf) as P
 import Hacss.Data
   ( AtScope(..)
@@ -405,6 +406,7 @@ rule = do
 
 rules ::
   forall r m.
+  MonadRec m =>
   MonadAsk
     { knownAtScopes :: Array AtScope
     , knownProperties :: Array Property
@@ -413,16 +415,15 @@ rules ::
     }
     m =>
   ParserT String m (Array Rule)
-rules = A.reverse <<< A.fromFoldable <<< L.nub <$> rules' Nil
+rules = A.reverse <<< A.fromFoldable <<< L.nub <$> whileJust rules'
   where
-  rules' acc =
-    fix \_ ->
-      ( do
-          r <- try rule
-          rules' $ r : acc
-      )
-        <|> (anyChar *> rules' acc)
-        <|> pure acc
+  rules' =
+    (eof *> pure Nothing)
+      <|> ( do
+            r <- try rule
+            pure $ Just (r : Nil)
+        )
+      <|> (anyChar *> pure (Just Nil))
 
 lower :: forall m. Monad m => ParserT String m Char
 lower = satisfy isLower

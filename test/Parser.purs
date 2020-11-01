@@ -536,13 +536,19 @@ tests = do
           }
           `shouldEqual`
             Right
-              [ { atScope: Just $ AtScope "sm"
-                , selector: Nothing
+              [ { atScope: Nothing
+                , selector:
+                    Just
+                      { context: Nothing
+                      , classNames: []
+                      , pseudoClasses: [ PseudoClass "hover" ]
+                      , pseudoElement: Nothing
+                      }
                 , declarations:
                     [ Declaration
                         $ Tuple
-                            (Property "padding")
-                            (Value [ Simple $ Unquoted [ Lit "0" ] ])
+                            (Property "color")
+                            (Value [ Simple $ Unquoted [ Lit "red" ] ])
                     ]
                 , importance: 0
                 }
@@ -556,19 +562,13 @@ tests = do
                     ]
                 , importance: 0
                 }
-              , { atScope: Nothing
-                , selector:
-                    Just
-                      { context: Nothing
-                      , classNames: []
-                      , pseudoClasses: [ PseudoClass "hover" ]
-                      , pseudoElement: Nothing
-                      }
+              , { atScope: Just $ AtScope "sm"
+                , selector: Nothing
                 , declarations:
                     [ Declaration
                         $ Tuple
-                            (Property "color")
-                            (Value [ Simple $ Unquoted [ Lit "red" ] ])
+                            (Property "padding")
+                            (Value [ Simple $ Unquoted [ Lit "0" ] ])
                     ]
                 , importance: 0
                 }
