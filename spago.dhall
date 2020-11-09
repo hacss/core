@@ -6,12 +6,9 @@
   , "generics-rep"
   , "newtype"
   , "nullable"
-  , "option"
-  , "parsing"
   , "psci-support"
   , "spec"
-  , "spec-quickcheck"
-  , "unicode"
+  , "string-parsers"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

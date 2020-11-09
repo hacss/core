@@ -1,575 +1,353 @@
 module Test.Hacss.Parser where
 
 import Prelude
-import Control.Monad.Reader (runReader)
-import Data.Array ((..))
-import Data.Array (filter) as A
-import Data.Char.Unicode (isLetter, isLower)
-import Data.Either (Either(..), isLeft)
-import Data.Enum (toEnumWithDefaults)
+import Data.Either (Either(Right), isLeft)
 import Data.Maybe (Maybe(..))
-import Data.String.CodeUnits (length, singleton, toCharArray) as S
-import Data.Traversable (for_, traverse_)
+import Data.Traversable (for_)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Test.Spec (SpecT, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
-import Text.Parsing.Parser (runParser, runParserT)
-import Hacss.Data
-  ( AtScope(..)
-  , ClassName(..)
-  , Combinator(..)
-  , Declaration(..)
-  , Property(..)
-  , PseudoClass(..)
-  , PseudoElement(..)
-  , QualifiedVal(..)
-  , ValExpr(..)
-  , ValSeg(..)
-  , Value(..)
-  , Variable(..)
-  )
-import Hacss.Parser
-  ( atScope
-  , className
-  , combinator
-  , context
-  , declaration
-  , property
-  , pseudoClass
-  , pseudoElement
-  , rule
-  , rules
-  , selector
-  , value
-  )
+import Hacss.Data (AtScope(..), ClassList(..), ClassName(..), Combinator(..), Context(..), Property(..), PseudoClass(..), PseudoElement(..), Selector(..), ValContext(..), ValExpr(..), Value(..), Variable(..))
+import Hacss.Parser (runParseM, atScope, className, combinator, context, declaration, priority, property, pseudoClass, pseudoElement, rule, selector, value)
 
 tests :: forall m. Monad m => SpecT Aff Unit m Unit
 tests = do
-  describe "className" do
-    it "should allow a '.' followed by series of lowercase or '-'"
-      $ runParser ".primary-button" className
+  describe "value" do
+    it "accepts a simple value"
+      $ runParseM value { knownVariables: [] } "red"
           `shouldEqual`
-            Right (ClassName "primary-button")
-    it "should allow a single lowercase letter"
-      $ runParser ".p" className `shouldEqual` Right (ClassName "p")
-    it "should reject without a leading '.'"
-      $ runParser "a" className `shouldSatisfy` isLeft
-    it "should reject a leading '-'"
-      $ runParser ".-primary" className `shouldSatisfy` isLeft
-    it "should reject a trailing '-'"
-      $ runParser ".primary-" className `shouldSatisfy` isLeft
-    it "should reject characters other than lowercase or '-'" do
-      let
-        chars = toEnumWithDefaults bottom top <$> 33 .. 126
-      let
-        invalidChars = A.filter (\c -> c /= '-' && not (isLower c)) chars
-      let
-        xs = S.singleton <$> invalidChars
-      for_ ((\x -> [ ".a" <> x, "." <> x <> "a", ".a" <> x <> "b" ]) =<< xs) \x ->
-        runParser x className
+            Right (Value [ Tuple Nothing [ Lit "red" ] ])
+    it "accepts a variable value"
+      $ runParseM value { knownVariables: [ Variable "red500" ] } "$red500"
+          `shouldEqual`
+            Right (Value [ Tuple Nothing [ Var (Variable "red500") ] ])
+    it "accepts a simple value containing variables"
+      $ runParseM value { knownVariables: [ Variable "red500" ] } "as$red500df"
+          `shouldEqual`
+            Right (Value [ Tuple Nothing [ Lit "as", Var (Variable "red500"), Lit "df" ] ])
+    it "excludes semicolons in simple values"
+      $ runParseM value { knownVariables: [] } "asdf;fdsa"
+          `shouldEqual`
+            Right (Value [ Tuple Nothing [ Lit "asdf" ] ])
+    it "excludes closing curly braces in simple values"
+      $ runParseM value { knownVariables: [] } "asdf}fdsa"
+          `shouldEqual`
+            Right (Value [ Tuple Nothing [ Lit "asdf" ] ])
+    it "excludes white space" do
+      runParseM value { knownVariables: [] } "asdf fdsa"
+        `shouldEqual`
+          Right (Value [ Tuple Nothing [ Lit "asdf" ] ])
+      runParseM value { knownVariables: [] } "'asdf fdsa'"
+        `shouldEqual`
+          Right (Value [ Tuple Nothing [ Lit "'asdf" ] ])
+      runParseM value { knownVariables: [] } "url('asdf fdsa')"
+        `shouldEqual`
+          Right (Value [ Tuple Nothing [ Lit "url('asdf" ] ])
+      runParseM value { knownVariables: [] } "calc(20% + 5px)"
+        `shouldEqual`
+          Right (Value [ Tuple Nothing [ Lit "calc(20%" ] ])
+    it "accepts semicolons between quotes"
+      $ runParseM value { knownVariables: [] } "'red;blue'"
+          `shouldEqual`
+            Right (Value [ Tuple (Just Quoted) [ Lit "red;blue" ] ])
+    it "accepts closing curly braces between quotes"
+      $ runParseM value { knownVariables: [] } "'red}blue'"
+          `shouldEqual`
+            Right (Value [ Tuple (Just Quoted) [ Lit "red}blue" ] ])
+    it "accepts empty quotes"
+      $ runParseM value { knownVariables: [] } "''"
+          `shouldEqual`
+            Right (Value [ Tuple Nothing [ Lit "''" ] ])
+    it "accepts a combination of quoted and unquoted segments" do
+      runParseM value { knownVariables: [] } "'foo'asdf'bar'"
+        `shouldEqual`
+          Right (Value [ Tuple (Just Quoted) [ Lit "foo" ], Tuple Nothing [ Lit "asdf" ], Tuple (Just Quoted) [ Lit "bar" ] ])
+      runParseM value { knownVariables: [] } "asdf'foo'bar"
+        `shouldEqual`
+          Right (Value [ Tuple Nothing [ Lit "asdf" ], Tuple (Just Quoted) [ Lit "foo" ], Tuple Nothing [ Lit "bar" ] ])
+    it "accepts a URL value"
+      $ runParseM value { knownVariables: [] } "url('https://abc.xyz/foo.jpg')"
+          `shouldEqual`
+            Right (Value [ Tuple (Just URL) [ Lit "https://abc.xyz/foo.jpg" ] ])
+    it "accepts a value that includes a URL"
+      $ runParseM value { knownVariables: [] } "#000__url('http://bomb.com/xyz.gif')__no-repeat"
+          `shouldEqual`
+            Right
+              ( Value
+                  [ Tuple Nothing [ Lit "#000 " ]
+                  , Tuple (Just URL) [ Lit "http://bomb.com/xyz.gif" ]
+                  , Tuple Nothing [ Lit " no-repeat" ]
+                  ]
+              )
+    it "parses variables within URL values"
+      $ runParseM value { knownVariables: [ Variable "foo" ] } "url('http://xy.z/$foo.gif')"
+          `shouldEqual`
+            Right (Value [ Tuple (Just URL) [ Lit "http://xy.z/", Var (Variable "foo"), Lit ".gif" ] ])
+    it "accepts a calc value"
+      $ runParseM value { knownVariables: [] } "calc((100%/3)+16px)"
+          `shouldEqual`
+            Right (Value [ Tuple (Just Calc) [ Lit "(100% / 3) + 16px" ] ])
+    it "accepts a value that includes a calc expression"
+      $ runParseM value { knownVariables: [] } "1rem__calc(1rem+2px)__1rem"
+          `shouldEqual`
+            Right
+              ( Value
+                  [ Tuple Nothing [ Lit "1rem " ]
+                  , Tuple (Just Calc) [ Lit "1rem + 2px" ]
+                  , Tuple Nothing [ Lit " 1rem" ]
+                  ]
+              )
+    it "parses variables within calc expressions"
+      $ runParseM value { knownVariables: [ Variable "foo" ] } "calc(1rem+$foo+1px)"
+          `shouldEqual`
+            Right (Value [ Tuple (Just Calc) [ Lit "1rem + ", Var (Variable "foo"), Lit " + 1px" ] ])
+    it "parses double underscores as white space within simple/quoted values"
+      $ runParseM value { knownVariables: [] } "a__b__'c__d'__e"
+          `shouldEqual`
+            Right
+              ( Value
+                  [ Tuple Nothing [ Lit "a b " ]
+                  , Tuple (Just Quoted) [ Lit "c d" ]
+                  , Tuple Nothing [ Lit " e" ]
+                  ]
+              )
+    it "parses double underscores as white space within URL values"
+      $ runParseM value { knownVariables: [] } "url('http://xy.z/logo__1.gif')"
+          `shouldEqual`
+            Right (Value [ Tuple (Just URL) [ Lit "http://xy.z/logo 1.gif" ] ])
+  describe "property" do
+    it "parses a known property"
+      $ runParseM property { knownProperties: [ Property "background" ] } "background"
+          `shouldEqual`
+            Right (Property "background")
+    it "parses the most specific known property"
+      $ runParseM property { knownProperties: Property <$> [ "background", "background-color" ] } "background-color"
+          `shouldEqual`
+            Right (Property "background-color")
+    it "rejects an unknown property"
+      $ runParseM property { knownProperties: [] } "foo"
           `shouldSatisfy`
-            case _ of
-              Left _ -> true
-              Right (ClassName y) -> S.length y + 1 < S.length x
+            isLeft
+  describe "className" do
+    it "accepts lowercase letters and hyphens following a '.'"
+      $ runParseM className unit ".abc-def"
+          `shouldEqual`
+            Right (ClassName "abc-def")
+    it "accepts a single lowercase letter following a '.'"
+      $ runParseM className unit ".a" `shouldEqual` Right (ClassName "a")
+    it "rejects a value that does not begin with '.'"
+      $ runParseM className unit "asdf" `shouldSatisfy` isLeft
+    it "rejects leading hyphen"
+      $ runParseM className unit ".-asdf" `shouldSatisfy` isLeft
+    it "rejects trailing hyphen"
+      $ runParseM className unit ".abc-" `shouldEqual` Right (ClassName "abc")
+    it "rejects characters other than lowercase letters and hyphens" do
+      runParseM className unit ".abc_123" `shouldEqual` Right (ClassName "abc")
   describe "pseudoClass" do
-    it "should allow basic pseudo-classes"
+    it "accepts basic pseudo-classes"
       $ for_
           [ "active"
           , "checked"
+          , "default"
+          , "defined"
           , "disabled"
           , "empty"
           , "enabled"
+          , "first"
           , "first-child"
           , "first-of-type"
           , "focus"
           , "focus-within"
           , "hover"
+          , "indeterminate"
           , "in-range"
           , "invalid"
           , "last-child"
           , "last-of-type"
+          , "left"
           , "link"
-          , "only-of-type"
           , "only-child"
+          , "only-of-type"
           , "optional"
           , "out-of-range"
+          , "picture-in-picture"
           , "read-only"
           , "read-write"
           , "required"
+          , "right"
           , "root"
+          , "scope"
           , "target"
           , "valid"
           , "visited"
           ] \x ->
-          runParser (":" <> x) pseudoClass
+          runParseM pseudoClass unit (":" <> x)
             `shouldEqual`
-              Right (PseudoClass x)
-  it "should allow :lang(...) selectors"
-    $ for_ [ "lang(en)", "lang(zh-Hans)" ] \x ->
-        runParser (":" <> x) pseudoClass `shouldEqual` Right (PseudoClass x)
-  for_ [ "child", "last-child", "last-of-type", "of-type" ] \x -> do
-    for_ [ "even", "odd" ] \eo ->
-      it ("should allow :nth-" <> x <> "(" <> eo <> ") selector")
-        $ runParser (":nth-" <> x <> "(" <> eo <> ")") pseudoClass
-            `shouldEqual`
-              Right (PseudoClass $ "nth-" <> x <> "(" <> eo <> ")")
-    it ("should allow formulas in :nth-" <> x <> "(...) selectors")
-      $ for_
-          [ "1", "-1", "n+1", "n-1", "-n+1", "-n-1", "-2n", "-2n+1", "2n", "-2n" ] \formula ->
-          runParser (":nth-" <> x <> "(" <> formula <> ")") pseudoClass
-            `shouldEqual`
-              Right (PseudoClass $ "nth-" <> x <> "(" <> formula <> ")")
-  it "should allow basic :not(...) selectors" do
-    runParser ":not(:focus)" pseudoClass
-      `shouldEqual`
-        Right (PseudoClassNot ({ classNames: [], pseudoClasses: [ PseudoClass "focus" ] }))
-    runParser ":not(.foo:nth-child(2n+1))" pseudoClass
-      `shouldEqual`
-        Right
-          ( PseudoClassNot
-              ( { classNames: [ ClassName "foo" ]
-                , pseudoClasses: [ PseudoClass "nth-child(2n+1)" ]
-                }
-              )
-          )
-  it "should allow nested :not(...) selectors"
-    $ runParser ":not(:not(:focus))" pseudoClass
+              Right (BasicPseudoClass x)
+    it "accepts :lang() pseudo-class" do
+      runParseM pseudoClass unit ":lang(en)"
         `shouldEqual`
-          Right
-            ( PseudoClassNot
-                ( { classNames: []
-                  , pseudoClasses:
-                      [ PseudoClassNot
-                          ( { classNames: []
-                            , pseudoClasses: [ PseudoClass "focus" ]
-                            }
-                          )
-                      ]
-                  }
-                )
-            )
-  it "should reject :lang(...) selectors with invalid characters"
-    $ for_
-        ( let
-            chars = toEnumWithDefaults bottom top <$> 33 .. 126
-
-            nonLetters = A.filter (\c -> not (isLetter c) && c /= ')' && c /= '-') chars
-          in
-            do
-              x <- S.singleton <$> nonLetters
-              (\s -> ":lang(" <> s <> ")") <$> [ "a" <> x, x <> "a", "a" <> x <> "b" ]
-        ) \c -> runParser c pseudoClass `shouldSatisfy` isLeft
-  it "should reject :lang(...) selectors with adjacent hyphens"
-    $ runParser ":lang(a--b)" pseudoClass `shouldSatisfy` isLeft
-  it "should reject unrecognized pseudo-classes"
-    $ runParser ":hello-world" pseudoClass `shouldSatisfy` isLeft
+          Right (BasicPseudoClass "lang(en)")
+    it "accepts uppercase letters and hyphens in :lang() pseudo-class"
+      $ runParseM pseudoClass unit ":lang(en-US)"
+          `shouldEqual`
+            Right (BasicPseudoClass "lang(en-US)")
+    it "rejects a leading hyphen in :lang() pseudo-class"
+      $ runParseM pseudoClass unit ":lang(-US)" `shouldSatisfy` isLeft
+    it "rejects a trailing hyphen in :lang() pseudo-class"
+      $ runParseM pseudoClass unit ":lang(en-)" `shouldSatisfy` isLeft
+    for_ [ "child", "last-child", "last-of-type", "of-type" ] \x -> do
+      for_ [ "1", "-n+2", "2n+3", "even", "odd" ] \y ->
+        it ("accepts :nth-" <> x <> "(" <> y <> ") pseudo-class")
+          $ runParseM pseudoClass unit (":nth-" <> x <> "(" <> y <> ")")
+              `shouldEqual`
+                Right (BasicPseudoClass $ "nth-" <> x <> "(" <> y <> ")")
+      for_ [ "foo", "-", "+", "2n+" ] \y ->
+        it ("rejects :nth-" <> x <> "(" <> y <> ") pseudo-class")
+          $ runParseM pseudoClass unit (":nth-" <> x <> "(" <> y <> ")")
+              `shouldSatisfy`
+                isLeft
+    it "accepts :not() pseudo-class"
+      $ runParseM pseudoClass unit ":not(.a.b:not(:focus):hover)"
+          `shouldEqual`
+            Right (NotPseudoClass (ClassList $ Tuple (ClassName <$> [ "a", "b" ]) [ NotPseudoClass (ClassList $ Tuple [] [ BasicPseudoClass "focus" ]), BasicPseudoClass "hover" ]))
+    it "rejects unknown pseudo-classes"
+      $ runParseM pseudoClass unit "foo" `shouldSatisfy` isLeft
   describe "pseudoElement" do
-    it "should allow standard pseudo-elements"
+    it "accepts standard pseudo-element"
       $ for_
           [ "after"
           , "before"
           , "first-letter"
           , "first-line"
-          , "marker"
           , "placeholder"
           , "selection"
           ] \x ->
-          runParser ("::" <> x) pseudoElement
+          runParseM pseudoElement unit ("::" <> x)
             `shouldEqual`
               Right (PseudoElement x)
-    it "should allow arbitrary vendor-prefixed pseudo-elements"
-      $ traverse_
-          (\x -> runParser ("::-" <> x) pseudoElement `shouldEqual` Right (PseudoElement $ "-" <> x))
-          ((\v e -> v <> "-" <> e) <$> [ "moz", "ms", "o", "webkit" ] <*> [ "foo", "foo-bar" ])
-    it "should reject non-standard unprefixed pseudo-elements"
-      $ runParser "::asdf" pseudoElement `shouldSatisfy` isLeft
-    it "should reject unknown vendor prefixes"
-      $ runParser "::-a-foo" pseudoElement `shouldSatisfy` isLeft
+    it "accepts arbitrary browser-prefixed pseudo-element"
+      $ for_ [ "moz", "ms", "o", "webkit" ] \p ->
+          runParseM pseudoElement unit ("::-" <> p <> "-foo-bar")
+            `shouldEqual`
+              Right (PseudoElement $ "-" <> p <> "-foo-bar")
+    it "rejects adjacent hyphens"
+      $ for_ [ "moz", "ms", "o", "webkit" ] \p ->
+          runParseM pseudoElement unit ("::-" <> p <> "-foo--bar")
+            `shouldSatisfy`
+              isLeft
+    it "rejects leading hyphens"
+      $ for_ [ "moz", "ms", "o", "webkit" ] \p ->
+          runParseM pseudoElement unit ("::-" <> p <> "--foo-bar")
+            `shouldSatisfy`
+              isLeft
+    it "rejects trailing hyphens"
+      $ for_ [ "moz", "ms", "o", "webkit" ] \p ->
+          runParseM pseudoElement unit ("::-" <> p <> "-foo-bar-")
+            `shouldSatisfy`
+              isLeft
+    it "rejects arbitrary pseudo-elements"
+      $ runParseM pseudoElement unit "::foo-bar" `shouldSatisfy` isLeft
   describe "combinator" do
-    it "should allow ancestor combinators"
-      $ runParser "_" combinator `shouldEqual` Right Ancestor
-    it "should allow parent combinators"
-      $ runParser ">" combinator `shouldEqual` Right Parent
-    it "should allow adjacent-sibling combinators"
-      $ runParser "+" combinator `shouldEqual` Right AdjacentSibling
-    it "should allow general-sibling combinators"
-      $ runParser "~" combinator `shouldEqual` Right GeneralSibling
-    it "should reject characters that are not combinators"
-      $ for_
-          (S.toCharArray "!@#$%^&*(){}\\|.,`") \x -> runParser (S.singleton x) combinator `shouldSatisfy` isLeft
-  describe "atScope" do
-    it "should allow known at-scopes"
-      $ for_ [ "foo", "a-b" ] \x ->
-          runReader
-            (runParserT ("@" <> x) atScope)
-            { knownAtScopes: AtScope <$> [ "x", x ] }
-            `shouldEqual`
-              Right (AtScope x)
-    it "should reject unknown at-scopes"
-      $ runReader (runParserT "sm" atScope) { knownAtScopes: AtScope <$> [ "lg" ] }
-          `shouldSatisfy`
-            isLeft
-  describe "property" do
-    it "should allow known properties"
-      $ for_ [ "foo", "a-b" ] \x ->
-          runReader (runParserT x property) { knownProperties: Property <$> [ "x", x ] }
-            `shouldEqual`
-              Right (Property x)
-    it "should handle properties that begin with the same substring"
-      $ runReader
-          (runParserT "background-image" property)
-          { knownProperties: Property <$> [ "background", "background-image" ] }
-          `shouldEqual`
-            Right (Property "background-image")
-    it "should reject unknown properties"
-      $ runReader (runParserT "x" property) { knownProperties: Property <$> [ "y" ] }
-          `shouldSatisfy`
-            isLeft
-  describe "value" do
-    it "should allow a calc expression"
-      $ runReader
-          (runParserT "calc((1px+$width)/2-1rem*1.5)" value)
-          { knownVariables: [ Variable "width" ] }
-          `shouldEqual`
-            Right (Value [ Calc [ Lit "(1px + ", Var $ Variable "width", Lit ") / 2 - 1rem * 1.5" ] ])
-    it "should parse unknown variables as literals within a calc expression"
-      $ runReader
-          (runParserT "calc((1px+$width)-1rem)" value)
-          { knownVariables: [] }
-          `shouldEqual`
-            Right (Value [ Calc [ Lit "(1px + $width) - 1rem" ] ])
-    it "should allow an unquoted URL"
-      $ runReader
-          (runParserT "url(https://acme.co/$logo.gif)" value)
-          { knownVariables: [ Variable "logo" ] }
-          `shouldEqual`
-            Right
-              ( Value
-                  ( URL
-                      <$> [ Unquoted
-                            [ Lit "https://acme.co/"
-                            , Var $ Variable "logo"
-                            , Lit ".gif"
-                            ]
-                        ]
-                  )
-              )
-    it "should allow a quoted URL"
-      $ runReader
-          (runParserT "url('https://acme.co/$logo.gif')" value)
-          { knownVariables: [ Variable "logo" ] }
-          `shouldEqual`
-            Right
-              ( Value
-                  ( URL
-                      <$> [ Quoted
-                            [ Lit "https://acme.co/"
-                            , Var $ Variable "logo"
-                            , Lit ".gif"
-                            ]
-                        ]
-                  )
-              )
-    it "should allow additional characters within a quoted URL"
-      $ runReader (runParserT "url('a;b}c)d')" value) { knownVariables: [] }
-          `shouldEqual`
-            Right (Value (URL <$> [ Quoted [ Lit "a;b}c)d" ] ]))
-    it "should allow quoted and unquoted value segments"
-      $ runReader (runParserT "red'yellow'green'blue'" value) { knownVariables: [] }
-          `shouldEqual`
-            Right
-              ( Value
-                  ( Simple
-                      <$> [ Unquoted [ Lit "red" ]
-                        , Quoted [ Lit "yellow" ]
-                        , Unquoted [ Lit "green" ]
-                        , Quoted [ Lit "blue" ]
-                        ]
-                  )
-              )
-    it "should allow additional characters within a quoted value"
-      $ runReader (runParserT "'a;b}c)d'" value) { knownVariables: [] }
-          `shouldEqual`
-            Right (Value (Simple <$> [ Quoted [ Lit "a;b}c)d" ] ]))
-    it "should stop before an unquoted semicolon or curly brace"
-      $ for_ ((\x -> "re" <> x <> "d") <$> [ ";", "}" ]) \x ->
-          runReader
-            (runParserT x value)
-            { knownVariables: [] }
-            `shouldEqual`
-              Right (Value [ Simple $ Unquoted [ Lit "re" ] ])
-    it "should convert double-underscore to space in a quoted URL"
-      $ runReader (runParserT "url('a__b')" value) { knownVariables: [] }
-          `shouldEqual`
-            Right (Value [ URL (Quoted [ Lit "a b" ]) ])
-    it "should convert double-underscore to space in an unquoted URL"
-      $ runReader (runParserT "url(a__b)" value) { knownVariables: [] }
-          `shouldEqual`
-            Right (Value [ URL (Unquoted [ Lit "a b" ]) ])
-    it "should convert double-underscore to space in a quoted value"
-      $ runReader (runParserT "'a__b'" value) { knownVariables: [] }
-          `shouldEqual`
-            Right (Value [ Simple (Quoted [ Lit "a b" ]) ])
-    it "should convert double-underscore to space in an unquoted value"
-      $ runReader (runParserT "a__b" value) { knownVariables: [] }
-          `shouldEqual`
-            Right (Value [ Simple (Unquoted [ Lit "a b" ]) ])
-    it "should allow a complex shorthand value involving a URL"
-      $ runReader
-          (runParserT "#000__url('https://hacss.io/$logo.gif')" value)
-          { knownVariables: [ Variable "logo" ] }
-          `shouldEqual`
-            Right
-              ( Value
-                  [ Simple $ Unquoted [ Lit "#000 " ]
-                  , URL $ Quoted [ Lit "https://hacss.io/", Var (Variable "logo"), Lit ".gif" ]
-                  ]
-              )
-    it "should properly handle 'u' in unquoted value"
-      $ runReader
-          (runParserT "no-underline" value)
-          { knownVariables: [] }
-          `shouldEqual`
-            Right (Value [ Simple $ Unquoted [ Lit "no-underline" ] ])
-    it "should allow a complex shorthand value involving a calc expression"
-      $ runReader
-          (runParserT "1rem__calc(2rem-8px)" value)
-          { knownVariables: [] }
-          `shouldEqual`
-            Right
-              ( Value
-                  [ Simple $ Unquoted [ Lit "1rem " ]
-                  , Calc [ Lit "2rem - 8px" ]
-                  ]
-              )
-    it "should properly handle 'c' in unquoted value"
-      $ runReader
-          (runParserT "#ccc" value)
-          { knownVariables: [] }
-          `shouldEqual`
-            Right (Value [ Simple $ Unquoted [ Lit "#ccc" ] ])
-  describe "declaration" do
-    it "should parse a declaration"
-      $ runReader
-          (runParserT "font-size:16px" declaration)
-          { knownProperties: [ Property "font-size" ], knownVariables: [] }
-          `shouldEqual`
-            Right
-              ( Declaration
-                  $ Tuple (Property "font-size")
-                      (Value [ Simple $ Unquoted [ Lit "16px" ] ])
-              )
+    it "parses '~' as a general sibling"
+      $ runParseM combinator unit "~" `shouldEqual` Right GeneralSibling
+    it "parses '+' as an adjacent sibling"
+      $ runParseM combinator unit "+" `shouldEqual` Right AdjacentSibling
+    it "parses '>' as a parent"
+      $ runParseM combinator unit ">" `shouldEqual` Right Parent
+    it "parses '_' as an ancestor"
+      $ runParseM combinator unit "_" `shouldEqual` Right Ancestor
   describe "context" do
-    it "should parse a context"
-      $ runParser ".field.touched:focus:hover+" context
+    it "parses a context including class list and combinator"
+      $ runParseM context unit ".foo:focus~"
           `shouldEqual`
-            Right
-              { classNames: ClassName <$> [ "field", "touched" ]
-              , pseudoClasses: PseudoClass <$> [ "focus", "hover" ]
-              , combinator: AdjacentSibling
-              }
-    it "should require at least one class name or pseudo-class"
-      $ runParser "+" context `shouldSatisfy` isLeft
+            Right (Context $ Tuple (ClassList $ Tuple [ ClassName "foo" ] [ BasicPseudoClass "focus" ]) GeneralSibling)
+    it "rejects something that is not a context"
+      $ runParseM context unit "foo::focus" `shouldSatisfy` isLeft
   describe "selector" do
-    it "should parse a selector"
-      $ runParser ".foo:hover>.bar:disabled::after" selector
+    it "parses a context"
+      $ runParseM selector unit ":checked+"
           `shouldEqual`
-            Right
-              { context:
-                  Just
-                    { classNames: [ ClassName "foo" ]
-                    , pseudoClasses: [ PseudoClass "hover" ]
-                    , combinator: Parent
-                    }
-              , classNames: [ ClassName "bar" ]
-              , pseudoClasses: [ PseudoClass "disabled" ]
-              , pseudoElement: Just (PseudoElement "after")
-              }
+            (Right $ Selector { context: Just (Context $ Tuple (ClassList $ Tuple [] [ BasicPseudoClass "checked" ]) AdjacentSibling), classes: Nothing, pseudoElement: Nothing })
+    it "parses a class list"
+      $ runParseM selector unit ".foo.bar"
+          `shouldEqual`
+            (Right $ Selector { context: Nothing, classes: Just $ ClassList $ Tuple (ClassName <$> [ "foo", "bar" ]) [], pseudoElement: Nothing })
+    it "parses a pseudo-element"
+      $ runParseM selector unit "::after"
+          `shouldEqual`
+            (Right $ Selector { context: Nothing, classes: Nothing, pseudoElement: Just $ PseudoElement "after" })
+    it "parses a context with a class list"
+      $ runParseM selector unit ".foo+:hover"
+          `shouldEqual`
+            (Right $ Selector { context: Just (Context $ Tuple (ClassList $ Tuple [ ClassName "foo" ] []) AdjacentSibling), classes: Just $ ClassList $ Tuple [] [ BasicPseudoClass "hover" ], pseudoElement: Nothing })
+    it "parses a class list with a pseudo-element"
+      $ runParseM selector unit ":hover:disabled::after"
+          `shouldEqual`
+            (Right $ Selector { context: Nothing, classes: Just $ ClassList $ Tuple [] $ BasicPseudoClass <$> [ "hover", "disabled" ], pseudoElement: Just $ PseudoElement "after" })
+    it "parses a context with a pseudo-element"
+      $ runParseM selector unit ".err>::before"
+          `shouldEqual`
+            (Right $ Selector { context: Just (Context $ Tuple (ClassList $ Tuple [ ClassName "err" ] []) Parent), classes: Nothing, pseudoElement: Just $ PseudoElement "before" })
+    it "parses a context with all components"
+      $ runParseM selector unit ":disabled_.err::placeholder"
+          `shouldEqual`
+            (Right $ Selector { context: Just (Context $ Tuple (ClassList $ Tuple [] [ BasicPseudoClass "disabled" ]) Ancestor), classes: Just $ ClassList $ Tuple [ ClassName "err" ] [], pseudoElement: Just $ PseudoElement "placeholder" })
+  describe "atScope" do
+    it "accepts a known at-scope"
+      $ runParseM atScope { knownAtScopes: AtScope <$> [ "lg", "sm" ] } "@sm"
+          `shouldEqual`
+            Right (AtScope "sm")
+    it "rejects an unknown at-scope"
+      $ runParseM atScope { knownAtScopes: [] } "@sm" `shouldSatisfy` isLeft
+  describe "priority"
+    $ it "increases by one for each '!' instance" do
+        runParseM priority unit "!" `shouldEqual` Right 1
+        runParseM priority unit "!!!!" `shouldEqual` Right 4
+  describe "declaration" do
+    it "accepts a declaration in the form of property:value"
+      $ runParseM declaration { knownProperties: Property <$> [ "color" ], knownVariables: [] } "color:red"
+          `shouldEqual`
+            Right (Tuple (Property "color") (Value [ Tuple Nothing [ Lit "red" ] ]))
+    it "rejects an incomplete declaration missing property"
+      $ runParseM declaration { knownProperties: Property <$> [ "color" ], knownVariables: [] } ":red"
+          `shouldSatisfy`
+            isLeft
+    it "rejects an incomplete declaration missing value"
+      $ runParseM declaration { knownProperties: Property <$> [ "color" ], knownVariables: [] } "color:"
+          `shouldSatisfy`
+            isLeft
   describe "rule" do
-    it "should allow a rule with declarations only"
-      $ runReader
-          (runParserT "background:red;color:white;" rule)
-          { knownAtScopes: []
-          , knownProperties: Property <$> [ "background", "color" ]
-          , knownVariables: []
-          }
+    it "accepts a declarations-only rule"
+      $ runParseM rule { knownAtScopes: [], knownProperties: Property <$> [ "background", "color" ], knownVariables: [] } "background:blue;color:white;"
           `shouldEqual`
-            Right
-              { atScope: Nothing
-              , selector: Nothing
-              , declarations:
-                  Declaration
-                    <$> [ Tuple (Property "background") (Value [ Simple (Unquoted [ Lit "red" ]) ])
-                      , Tuple (Property "color") (Value [ Simple (Unquoted [ Lit "white" ]) ])
-                      ]
-              , importance: 0
-              }
-    it "should allow a rule with a selector"
-      $ runReader
-          (runParserT ".err{background:red}" rule)
-          { knownAtScopes: []
-          , knownProperties: [ Property "background" ]
-          , knownVariables: []
-          }
+            Right { atScope: Nothing, selector: Nothing, declarations: [ Tuple (Property "background") (Value [ Tuple Nothing [ Lit "blue" ] ]), Tuple (Property "color") (Value [ Tuple Nothing [ Lit "white" ] ]) ], priority: 0 }
+    it "accepts a declarations-only rule with priority"
+      $ runParseM rule { knownAtScopes: [], knownProperties: Property <$> [ "background", "color" ], knownVariables: [] } "background:blue;!!!"
           `shouldEqual`
-            Right
-              { atScope: Nothing
-              , selector:
-                  Just
-                    { context: Nothing
-                    , classNames: [ ClassName "err" ]
-                    , pseudoClasses: []
-                    , pseudoElement: Nothing
-                    }
-              , declarations:
-                  [ Declaration
-                      $ Tuple
-                          (Property "background")
-                          (Value [ Simple (Unquoted [ Lit "red" ]) ])
-                  ]
-              , importance: 0
-              }
-    it "should allow a rule with an at-scope"
-      $ runReader
-          (runParserT "@sm{background:red}" rule)
-          { knownAtScopes: [ AtScope "sm" ]
-          , knownProperties: [ Property "background" ]
-          , knownVariables: []
-          }
+            Right { atScope: Nothing, selector: Nothing, declarations: [ Tuple (Property "background") (Value [ Tuple Nothing [ Lit "blue" ] ]) ], priority: 3 }
+    it "accepts a rule with a selector"
+      $ runParseM rule { knownAtScopes: [], knownProperties: Property <$> [ "color" ], knownVariables: [] } ".err{color:red}"
           `shouldEqual`
-            Right
-              { atScope: Just $ AtScope "sm"
-              , selector: Nothing
-              , declarations:
-                  [ Declaration
-                      $ Tuple
-                          (Property "background")
-                          (Value [ Simple (Unquoted [ Lit "red" ]) ])
-                  ]
-              , importance: 0
-              }
-    it "should allow a rule with an at-scope and a selector"
-      $ runReader
-          (runParserT "@sm{.err{background:red}}" rule)
-          { knownAtScopes: [ AtScope "sm" ]
-          , knownProperties: [ Property "background" ]
-          , knownVariables: []
-          }
+            Right { atScope: Nothing, selector: Just $ Selector { context: Nothing, classes: Just $ ClassList $ Tuple [ ClassName "err" ] [], pseudoElement: Nothing }, declarations: [ Tuple (Property "color") (Value [ Tuple Nothing [ Lit "red" ] ]) ], priority: 0 }
+    it "accepts a rule with a selector and priority"
+      $ runParseM rule { knownAtScopes: [], knownProperties: Property <$> [ "color" ], knownVariables: [] } ".err{color:red}!"
           `shouldEqual`
-            Right
-              { atScope: Just $ AtScope "sm"
-              , selector:
-                  Just
-                    { context: Nothing
-                    , classNames: [ ClassName "err" ]
-                    , pseudoClasses: []
-                    , pseudoElement: Nothing
-                    }
-              , declarations:
-                  [ Declaration
-                      $ Tuple
-                          (Property "background")
-                          (Value [ Simple (Unquoted [ Lit "red" ]) ])
-                  ]
-              , importance: 0
-              }
-    it "should allow a declarations-only rule with importance"
-      $ runReader
-          (runParserT "background:red;color:white;!!!" rule)
-          { knownAtScopes: []
-          , knownProperties: Property <$> [ "background", "color" ]
-          , knownVariables: []
-          }
+            Right { atScope: Nothing, selector: Just $ Selector { context: Nothing, classes: Just $ ClassList $ Tuple [ ClassName "err" ] [], pseudoElement: Nothing }, declarations: [ Tuple (Property "color") (Value [ Tuple Nothing [ Lit "red" ] ]) ], priority: 1 }
+    it "accepts a rule with an at-scope"
+      $ runParseM rule { knownAtScopes: [ AtScope "sm" ], knownProperties: Property <$> [ "color" ], knownVariables: [] } "@sm{color:red}"
           `shouldEqual`
-            Right
-              { atScope: Nothing
-              , selector: Nothing
-              , declarations:
-                  Declaration
-                    <$> [ Tuple (Property "background") (Value [ Simple (Unquoted [ Lit "red" ]) ])
-                      , Tuple (Property "color") (Value [ Simple (Unquoted [ Lit "white" ]) ])
-                      ]
-              , importance: 3
-              }
-    it "should allow an advanced rule with importance"
-      $ runReader
-          (runParserT "@sm{background:red}!!" rule)
-          { knownAtScopes: [ AtScope "sm" ]
-          , knownProperties: [ Property "background" ]
-          , knownVariables: []
-          }
+            Right { atScope: Just $ AtScope "sm", selector: Nothing, declarations: [ Tuple (Property "color") (Value [ Tuple Nothing [ Lit "red" ] ]) ], priority: 0 }
+    it "accepts a rule with an at-scope and priority"
+      $ runParseM rule { knownAtScopes: [ AtScope "sm" ], knownProperties: Property <$> [ "color" ], knownVariables: [] } "@sm{color:red}!!!"
           `shouldEqual`
-            Right
-              { atScope: Just $ AtScope "sm"
-              , selector: Nothing
-              , declarations:
-                  [ Declaration
-                      $ Tuple
-                          (Property "background")
-                          (Value [ Simple (Unquoted [ Lit "red" ]) ])
-                  ]
-              , importance: 2
-              }
-  describe "rules" do
-    it "should parse rules from a large block of code"
-      $ runReader
-          ( runParserT
-              """
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <title>Foo</title>
-                </head>
-                <body class="@sm{padding:0}">
-                  <button class="@sm{padding:0} background:#eee; :hover{color:red}">
-                    Testing
-                  </button>
-                </body>
-              </html>
-            """
-              rules
-          )
-          { knownAtScopes: [ AtScope "sm" ]
-          , knownProperties: Property <$> [ "background", "color", "padding" ]
-          , knownVariables: [ Variable "foo" ]
-          }
+            Right { atScope: Just $ AtScope "sm", selector: Nothing, declarations: [ Tuple (Property "color") (Value [ Tuple Nothing [ Lit "red" ] ]) ], priority: 3 }
+    it "accepts a rule with an at-scope and a selector"
+      $ runParseM rule { knownAtScopes: [ AtScope "sm" ], knownProperties: [ Property "color" ], knownVariables: [] } "@sm{.err{color:red}}"
           `shouldEqual`
-            Right
-              [ { atScope: Nothing
-                , selector:
-                    Just
-                      { context: Nothing
-                      , classNames: []
-                      , pseudoClasses: [ PseudoClass "hover" ]
-                      , pseudoElement: Nothing
-                      }
-                , declarations:
-                    [ Declaration
-                        $ Tuple
-                            (Property "color")
-                            (Value [ Simple $ Unquoted [ Lit "red" ] ])
-                    ]
-                , importance: 0
-                }
-              , { atScope: Nothing
-                , selector: Nothing
-                , declarations:
-                    [ Declaration
-                        $ Tuple
-                            (Property "background")
-                            (Value [ Simple $ Unquoted [ Lit "#eee" ] ])
-                    ]
-                , importance: 0
-                }
-              , { atScope: Just $ AtScope "sm"
-                , selector: Nothing
-                , declarations:
-                    [ Declaration
-                        $ Tuple
-                            (Property "padding")
-                            (Value [ Simple $ Unquoted [ Lit "0" ] ])
-                    ]
-                , importance: 0
-                }
-              ]
+            Right { atScope: Just $ AtScope "sm", selector: Just $ Selector { context: Nothing, classes: Just $ ClassList $ Tuple [ ClassName "err" ] [], pseudoElement: Nothing }, declarations: [ Tuple (Property "color") (Value [ Tuple Nothing [ Lit "red" ] ]) ], priority: 0 }
+    it "accepts a rule with an at-scope, a selector, and a priority"
+      $ runParseM rule { knownAtScopes: [ AtScope "sm" ], knownProperties: [ Property "color" ], knownVariables: [] } "@sm{.err{color:red}}!"
+          `shouldEqual`
+            Right { atScope: Just $ AtScope "sm", selector: Just $ Selector { context: Nothing, classes: Just $ ClassList $ Tuple [ ClassName "err" ] [], pseudoElement: Nothing }, declarations: [ Tuple (Property "color") (Value [ Tuple Nothing [ Lit "red" ] ]) ], priority: 1 }
