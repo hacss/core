@@ -138,3 +138,40 @@ tests =
                   }
                 `shouldEqual`
                   """.\:\:after\{content\:\'\'\}::after{content:''}"""
+          it "renders a rule with an at-scope"
+            $ render'
+                emptyRule
+                  { atScope = Just $ AtScope "sm"
+                  , declarations =
+                    [ Tuple
+                        (Property "padding")
+                        (Value [ Tuple Nothing [ Lit "0" ] ])
+                    ]
+                  }
+                `shouldEqual`
+                  """@media only screen and (max-width:400px){.\@sm\{padding\:0\}{padding:0}}"""
+          it "renders a rule with an at-scope and a selector"
+            $ render'
+                emptyRule
+                  { atScope = Just $ AtScope "sm"
+                  , selector = Just $ emptySelector _ { pseudoElement = Just $ PseudoElement "before" }
+                  , declarations =
+                    [ Tuple
+                        (Property "padding")
+                        (Value [ Tuple Nothing [ Lit "0" ] ])
+                    ]
+                  }
+                `shouldEqual`
+                  """@media only screen and (max-width:400px){.\@sm\{\:\:before\{padding\:0\}\}::before{padding:0}}"""
+          it "renders a rule with priority"
+            $ render'
+                emptyRule
+                  { declarations =
+                    [ Tuple
+                        (Property "background")
+                        (Value [ Tuple Nothing [ Lit "red" ] ])
+                    ]
+                  , priority = 2
+                  }
+                `shouldEqual`
+                  """.background\:red\;\!\!.background\:red\;\!\!.background\:red\;\!\!{background:red}"""
