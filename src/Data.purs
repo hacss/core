@@ -15,6 +15,8 @@ derive instance newtypeVariable :: Newtype Variable _
 
 derive newtype instance eqVariable :: Eq Variable
 
+derive newtype instance ordVariable :: Ord Variable
+
 derive newtype instance showVariable :: Show Variable
 
 data ValExpr
@@ -133,6 +135,8 @@ newtype AtScope
 derive instance newtypeAtScope :: Newtype AtScope _
 
 derive newtype instance eqAtScope :: Eq AtScope
+
+derive newtype instance ordAtScope :: Ord AtScope
 
 derive newtype instance showAtScope :: Show AtScope
 

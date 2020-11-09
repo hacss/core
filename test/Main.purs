@@ -8,6 +8,7 @@ import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner (runSpec)
 import Test.Hacss.Parser (tests) as Parser
 import Test.Hacss.Printer (tests) as Printer
+import Test.Hacss.Renderer (tests) as Renderer
 
 main :: Effect Unit
 main =
@@ -15,3 +16,4 @@ main =
     $ runSpec [ consoleReporter ] do
         describe "parser" Parser.tests
         describe "printer" Printer.tests
+        describe "renderer" Renderer.tests
