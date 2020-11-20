@@ -23,7 +23,7 @@ module.exports = {
   ],
   plugins: [
     modify({
-      find: /module\.exports\s*=\s*\{[^\}]+\}/m,
+      find: /module\.exports\s*=\s*\{[^\}]*hacss[^\}]*\}/m,
       replace: "module.exports = unsafeForeignHacss",
     }),
     commonjs(),
