@@ -1,105 +1,28 @@
 module Hacss.Parser where
 
 import Prelude
-import Control.Alt (class Alt, (<|>))
-import Control.Alternative (class Alternative)
-import Control.Lazy (class Lazy, defer, fix)
-import Control.Monad.Reader.Class (class MonadAsk, ask)
-import Control.Monad.Reader.Trans (ReaderT, asks, runReaderT)
-import Control.Monad.Rec.Class (class MonadRec, whileJust)
-import Control.Monad.Trans.Class (lift) as T
-import Control.Plus (class Plus)
-import Data.Array (cons, fromFoldable, length, many, reverse, some, sortWith) as A
-import Data.Either (Either)
-import Data.Foldable (foldl)
+import Control.Alt ((<|>))
+import Control.Lazy (fix)
+import Control.Monad.Rec.Class (whileJust)
+import Data.Array (cons, elem, fromFoldable, length, many, nub, reverse, some, sortWith) as A
+import Data.Either (Either(..))
+import Data.Foldable (null)
+import Data.Lens ((.~))
 import Data.List (List(Nil), (:))
-import Data.List (nub) as L
-import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing)
-import Data.Newtype (class Newtype, un)
-import Data.String.Common (replaceAll)
-import Data.String.CodeUnits (fromCharArray, length, singleton) as S
+import Data.List (null) as L
+import Data.Maybe (Maybe(..), fromMaybe, isJust)
+import Data.String.CodeUnits (fromCharArray, length) as S
 import Data.String.Common (joinWith) as S
-import Data.String.Pattern (Pattern(..), Replacement(..))
 import Data.Tuple (Tuple(..))
-import Text.Parsing.StringParser (ParseError, Parser, runParser)
-import Text.Parsing.StringParser (fail, try) as P
-import Text.Parsing.StringParser.CodeUnits (alphaNum, anyChar, anyDigit, anyLetter, char, eof, lowerCaseChar, oneOf, noneOf, regex, string) as P
-import Text.Parsing.StringParser.Combinators (lookAhead, optionMaybe, withError) as P
-import Hacss.Data (AtScope(..), ClassList(..), ClassName(..), Combinator(..), Context(..), Property(..), PseudoClass(..), PseudoElement(..), Rule, Selector(..), ValContext(..), ValExpr(..), Value(..), Variable(..))
+import Text.Parsing.StringParser (Parser, fail, try)
+import Text.Parsing.StringParser.CodeUnits (anyChar, anyDigit, char, eof, lowerCaseChar, noneOf, regex, string)
+import Text.Parsing.StringParser.Combinators ((<?>), lookAhead, optionMaybe, sepBy1)
+import Hacss.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), Rule, Selector, ValCtx(..), ValExpr(..), Value(..), Variable(..), emptyRule, emptySelector, ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorContext, selectorClasses, selectorPseudoElement)
 
-whiteSpaceChars :: Array Char
-whiteSpaceChars = [ ' ', '\t', '\r', '\n' ]
+whiteSpace :: Array Char
+whiteSpace = [ ' ', '\t', '\r', '\n' ]
 
-newtype ParseM r a
-  = ParseM (ReaderT r Parser a)
-
-derive instance newtypeParseM :: Newtype (ParseM r a) _
-
-derive newtype instance altParseM :: Alt (ParseM r)
-
-derive newtype instance alternativeParseM :: Alternative (ParseM r)
-
-derive newtype instance applicativeParseM :: Applicative (ParseM r)
-
-derive newtype instance applyParseM :: Apply (ParseM r)
-
-derive newtype instance bindParseM :: Bind (ParseM r)
-
-derive newtype instance functorParseM :: Functor (ParseM r)
-
-derive newtype instance monadParseM :: Monad (ParseM r)
-
-derive newtype instance monadAskParseM :: MonadAsk r (ParseM r)
-
-derive newtype instance plusParseM :: Plus (ParseM r)
-
-instance lazyParseM :: Lazy (ParseM r a) where
-  defer f = do
-    x <- ask
-    lift $ defer \_ -> runReaderT (un ParseM (f unit)) x
-
-derive newtype instance monadRecParseM :: MonadRec (ParseM r)
-
-lift :: forall r a. Parser a -> ParseM r a
-lift = ParseM <<< T.lift
-
-fail :: forall r a. String -> ParseM r a
-fail = lift <<< P.fail
-
-alphaNum :: forall r. ParseM r Char
-alphaNum = lift P.alphaNum
-
-anyChar :: forall r. ParseM r Char
-anyChar = lift P.anyChar
-
-anyDigit :: forall r. ParseM r Char
-anyDigit = lift P.anyDigit
-
-anyLetter :: forall r. ParseM r Char
-anyLetter = lift P.anyLetter
-
-char :: forall r. Char -> ParseM r Char
-char = lift <<< P.char
-
-eof :: forall r. ParseM r Unit
-eof = lift P.eof
-
-lowerCaseChar :: forall r. ParseM r Char
-lowerCaseChar = lift P.lowerCaseChar
-
-noneOf :: forall r. Array Char -> ParseM r Char
-noneOf = lift <<< P.noneOf
-
-oneOf :: forall r. Array Char -> ParseM r Char
-oneOf = lift <<< P.oneOf
-
-regex :: forall r. String -> ParseM r String
-regex = lift <<< P.regex
-
-string :: forall r. String -> ParseM r String
-string = lift <<< P.string
-
-oneOfString :: forall r. Array String -> ParseM r String
+oneOfString :: Array String -> Parser String
 oneOfString xs =
   let
     err = "Expected one of: " <> S.joinWith ", " ((\x -> "\"" <> x <> "\"") <$> xs) <> "."
@@ -112,344 +35,233 @@ oneOfString xs =
         pure x
       <?> err
 
-oneOfWrapped :: forall r a. (a -> String) -> (String -> a) -> Array a -> ParseM r a
-oneOfWrapped toString fromString xs = fromString <$> (oneOfString $ map toString xs)
-
-liftCombinator :: forall r i o. (Parser i -> Parser o) -> ParseM r i -> ParseM r o
-liftCombinator c p = do
-  r <- ask
-  lift $ c $ runReaderT (un ParseM p) r
-
-try :: forall r a. ParseM r a -> ParseM r a
-try = liftCombinator P.try
-
-lookAhead :: forall r a. ParseM r a -> ParseM r a
-lookAhead = liftCombinator P.lookAhead
-
-optionMaybe :: forall r a. ParseM r a -> ParseM r (Maybe a)
-optionMaybe = liftCombinator P.optionMaybe
-
-withError :: forall r a. ParseM r a -> String -> ParseM r a
-withError = flip $ liftCombinator <<< flip P.withError
-
-infixl 3 withError as <?>
-
-endBy1 :: forall r s a. ParseM r a -> ParseM r s -> ParseM r (Array a)
-endBy1 x sep = A.some $ x <* sep
-
-sepBy1 :: forall r s a. ParseM r a -> ParseM r s -> ParseM r (Array a)
-sepBy1 x sep = do
-  h <- x
-  t <- A.many $ sep *> x
-  pure $ h `A.cons` t
-
-runParseM :: forall r a. ParseM r a -> r -> String -> Either ParseError a
-runParseM (ParseM m) r = runParser $ runReaderT m r
-
-value :: forall r. ParseM { knownVariables :: Array Variable | r } Value
-value = Value <$> A.some (try (url <|> calc <|> quoted) <|> normal)
+value :: Parser Value
+value = variableOnly <|> normal
   where
-  normal = do
-    segments <- A.some $ (char '$' *> var) <|> lit
-    pure $ Tuple Nothing segments
+  variableOnly = Value <<< Left <$> variable
 
-  lit = Lit <<< S.fromCharArray <<< A.reverse <<< A.fromFoldable <$> litChar Nil
+  normal = Value <<< Right <$> A.some (calc <|> url <|> quoted <|> unquoted)
     where
-    litChar Nil = do
-      notLit <- isJust <$> optionMaybe (try $ lookAhead (url <|> calc <|> quoted))
-      if notLit then
-        fail "literal"
-      else do
-        c <- space <|> (noneOf $ [ '$', ';', '}' ] <> whiteSpaceChars)
-        litChar (c : Nil)
+    calc = do
+      _ <- string "calc("
+      x <- Tuple (Just Calc) <<< A.reverse <<< A.fromFoldable <$> calc' 1 Nil Nil
+      pure x
+      where
+      calc' n chars exprs
+        | n < 1 =
+          if L.null chars then
+            pure exprs
+          else
+            pure $ (Lit $ S.fromCharArray $ A.reverse $ A.fromFoldable chars) : exprs
+        | otherwise =
+          fix \_ ->
+            ( do
+                v <- var
+                if L.null chars then
+                  calc' n Nil $ v : exprs
+                else
+                  calc' n Nil $ v : (Lit $ S.fromCharArray $ A.reverse $ A.fromFoldable chars) : exprs
+            )
+              <|> ( do
+                    c <- noneOf ([ '#' ] <> whiteSpace) <|> (char '#' <* lookAhead (noneOf [ '{' ]))
+                    case c of
+                      ')' -> calc' (n - 1) (if n > 1 then ')' : chars else chars) exprs
+                      '(' -> calc' (n + 1) ('(' : chars) exprs
+                      _
+                        | c `A.elem` [ '+', '-', '*', '/' ] -> calc' n (' ' : c : ' ' : chars) exprs
+                      _ -> calc' n (c : chars) exprs
+                )
 
-    litChar acc =
-      fix \_ ->
-        ( do
-            c <- space <|> (noneOf $ [ '$', ';', '}' ] <> whiteSpaceChars)
-            (lookAhead (try (url <|> calc <|> quoted)) *> pure (c : acc)) <|> litChar (c : acc)
-        )
-          <|> pure acc
+    url = do
+      _ <- string "url('"
+      x <- Tuple (Just URL) <$> A.some (try var <|> lit)
+      _ <- string "')"
+      pure x
+      where
+      lit = Lit <<< S.fromCharArray <$> A.some allowedChar
+        where
+        allowedChar =
+          (string "__" *> pure ' ')
+            <|> (noneOf $ whiteSpace <> [ '#', '\'' ])
+            <|> try (char '#' <* lookAhead (noneOf [ '{' ]))
 
-  url = do
-    _ <- string "url('"
-    x <- A.some $ (char '$' *> var) <|> (Lit <<< S.fromCharArray <$> A.some (space <|> nonTerm))
-    _ <- string "')"
-    pure $ Tuple (Just URL) x
+    quoted = do
+      _ <- char '\''
+      x <- Tuple (Just Quoted) <$> A.some (try var <|> lit)
+      _ <- char '\''
+      pure x
+      where
+      lit = Lit <<< S.fromCharArray <$> A.some allowedChar
+        where
+        allowedChar =
+          (string "__" *> pure ' ')
+            <|> (noneOf $ whiteSpace <> [ '#', '\'' ])
+            <|> try (char '#' <* lookAhead (noneOf [ '{' ]))
+
+    unquoted = Tuple Nothing <$> A.some (try var <|> lit)
+      where
+      lit = Lit <<< S.fromCharArray <$> A.some allowedChar
+        where
+        allowedChar = do
+          nonLit <-
+            (||) <$> (isJust <$> optionMaybe (lookAhead url))
+              <*> (isJust <$> optionMaybe (lookAhead calc))
+          if nonLit then
+            fail "Start of a URL"
+          else
+            (string "__" *> pure ' ')
+              <|> (noneOf $ whiteSpace <> [ '#', ';', '}', '\'' ])
+              <|> try (char '#' <* lookAhead (noneOf [ '{' ]))
+
+    var = do
+      _ <- string "#{"
+      v <- variable
+      _ <- char '}'
+      pure $ Var v
+
+  variable = Variable <<< S.fromCharArray <$> ((char '$' <* lookAhead lowerCaseChar) *> A.some allowedChar)
     where
-    nonTerm = noneOf $ [ '$', '\'' ] <> whiteSpaceChars
+    allowedChar = lowerCaseChar <|> anyDigit <|> try (char '-' <* lookAhead (lowerCaseChar <|> anyDigit))
 
-  calc = do
-    _ <- string "calc("
-    x <- calc' 1 Nil Nil
-    pure $ Tuple (Just Calc) $ A.reverse $ A.fromFoldable x
-    where
-    calc' n
-      | n < 1 = \acc accLit -> case accLit of
-        Nil -> pure acc
-        _ -> pure $ calcLit accLit : acc
-      | otherwise = \acc accLit ->
-        fix \_ ->
-          ( (char '$' *> var)
-              >>= \v -> case accLit of
-                  Nil -> calc' n (v : acc) Nil
-                  _ -> calc' n (v : calcLit accLit : acc) Nil
-          )
-            <|> ( do
-                  x <- alphaNum <|> oneOf [ '.', '%', '(', ')', '+', '-', '*', '/' ]
-                  case x of
-                    '(' -> calc' (n + 1) acc (x : accLit)
-                    ')'
-                      | n > 1 -> calc' (n - 1) acc (x : accLit)
-                      | otherwise -> calc' (n - 1) acc accLit
-                    _ -> calc' n acc (x : accLit)
-              )
+property :: Parser Property
+property =
+  ( do
+      vendor <- oneOfString [ "-moz", "-ms", "-o", "-webkit" ]
+      Property <<< (vendor <> _) <<< S.fromCharArray <$> A.some allowedChar
+  )
+    <|> ( do
+          h <- lowerCaseChar
+          t <- A.some allowedChar
+          pure $ Property $ S.fromCharArray $ h `A.cons` t
+      )
+  where
+  allowedChar = lowerCaseChar <|> try (char '-' <* lookAhead lowerCaseChar)
 
-    calcLit = Lit <<< replaceOps <<< S.fromCharArray <<< A.reverse <<< A.fromFoldable
-
-    replaceOps s = foldl (\x o -> replaceAll (Pattern o) (Replacement $ " " <> o <> " ") x) s [ "+", "-", "*", "/" ]
-
-  quoted = do
-    _ <- char '\''
-    x <- A.some $ (char '$' *> var) <|> (Lit <<< S.fromCharArray <$> A.some ((string "__" *> pure ' ') <|> nonTerm))
-    _ <- char '\''
-    pure $ Tuple (Just Quoted) x
-    where
-    nonTerm = noneOf $ [ '$', '\'' ] <> whiteSpaceChars
-
-  var = do
-    p <- asks $ oneOfWrapped (un Variable) Variable <<< _.knownVariables
-    Var <$> p
-
-  space = string "__" *> pure ' '
-
-property :: forall r. ParseM { knownProperties :: Array Property | r } Property
-property = do
-  property' <- asks $ oneOfString <<< map (un Property) <<< _.knownProperties
-  Property <$> property'
-
-declaration :: forall r. ParseM { knownProperties :: Array Property, knownVariables :: Array Variable | r } (Tuple Property Value)
+declaration :: Parser Declaration
 declaration = do
   p <- property
   _ <- char ':'
   v <- value
-  pure $ Tuple p v
+  pure $ Declaration $ Tuple p v
 
-className :: forall r. ParseM r ClassName
-className = do
-  _ <- char '.'
-  h <- lowerCaseChar
-  t <- A.many $ lowerCaseChar <|> try (char '-' <* lookAhead lowerCaseChar)
-  pure $ ClassName $ S.fromCharArray $ A.cons h t
-
-pseudoClass :: forall r. ParseM r PseudoClass
-pseudoClass = char ':' *> (notPseudoClass <|> basicPseudoClass)
+cls :: Parser Class
+cls =
+  fix \_ ->
+    (NotPseudoClass <$> (string ":not(" *> A.some cls <* char ')'))
+      <|> (NamedClass <$> (char '.' *> basic (lowerCaseChar <|> anyDigit)))
+      <|> ( do
+            _ <- char ':'
+            a <- (basic lowerCaseChar <|> (oneOfString [ "-moz-", "-ms-", "-o-", "-webkit-" ] >>= \v -> (v <> _) <$> basic lowerCaseChar)) <?> "Expected a lowercase letter or vendor prefix."
+            b <- optionMaybe $ S.fromCharArray <$> (char '(' *> A.some (noneOf $ whiteSpace <> [ ')' ]) <* char ')')
+            pure
+              $ case b of
+                  Nothing -> PseudoClass a
+                  Just b' -> PseudoClass $ a <> "(" <> b' <> ")"
+        )
   where
-  notPseudoClass = fix \_ -> NotPseudoClass <$> (string "not(" *> classList <* char ')')
+  basic c = do
+    h <- c
+    t <- A.some allowedChar
+    pure $ S.fromCharArray $ h `A.cons` t
+    where
+    allowedChar = c <|> try (char '-' <* lookAhead c)
 
-  basicPseudoClass =
-    BasicPseudoClass
-      <$> ( ( do
-              _ <- string "lang("
-              h <- anyLetter
-              t <- A.some (anyLetter <|> (char '-' <* lookAhead anyLetter))
-              _ <- char ')'
-              pure $ "lang(" <> S.fromCharArray (h `A.cons` t) <> ")"
-          )
-            <|> ( do
-                  _ <- string "nth-"
-                  t <- oneOfString [ "child", "last-child", "last-of-type", "of-type" ]
-                  _ <- char '('
-                  expr <-
-                    string "even" <|> string "odd"
-                      <|> ( do
-                            a <-
-                              ( do
-                                  neg <- fromMaybe "" <$> (optionMaybe $ string "-")
-                                  digits <- S.fromCharArray <$> A.many anyDigit
-                                  pure $ neg <> digits
-                              )
-                                <|> (S.fromCharArray <$> A.some anyDigit)
-                            nplusb <-
-                              optionMaybe do
-                                _ <- char 'n'
-                                plus <- S.singleton <$> oneOf [ '+', '-' ]
-                                b <- S.fromCharArray <$> A.some anyDigit
-                                pure $ "n" <> plus <> b
-                            let
-                              result = a <> fromMaybe "" nplusb
-                            if result == "-" then
-                              fail $ "Expected a valid :nth-" <> t <> " formula."
-                            else
-                              pure result
-                        )
-                  _ <- char ')'
-                  pure $ "nth-" <> t <> "(" <> expr <> ")"
-              )
-            <|> oneOfString
-                [ "active"
-                , "checked"
-                , "default"
-                , "defined"
-                , "disabled"
-                , "empty"
-                , "enabled"
-                , "first"
-                , "first-child"
-                , "first-of-type"
-                , "focus"
-                , "focus-within"
-                , "hover"
-                , "indeterminate"
-                , "in-range"
-                , "invalid"
-                , "last-child"
-                , "last-of-type"
-                , "left"
-                , "link"
-                , "only-child"
-                , "only-of-type"
-                , "optional"
-                , "out-of-range"
-                , "picture-in-picture"
-                , "read-only"
-                , "read-write"
-                , "required"
-                , "right"
-                , "root"
-                , "scope"
-                , "target"
-                , "valid"
-                , "visited"
-                ]
-        )
-
-classList :: forall r. ParseM r ClassList
-classList = do
-  names <- A.many className
-  pseudos <- A.many $ try pseudoClass
-  if A.length names == 0 && A.length pseudos == 0 then
-    fail "Expected a class name or pseudo-class."
-  else
-    pure $ ClassList $ Tuple names pseudos
-
-pseudoElement :: forall r. ParseM r PseudoElement
-pseudoElement =
-  PseudoElement
-    <$> ( ( do
-            _ <- string "::-"
-            p <- oneOfString [ "moz", "ms", "o", "webkit" ]
-            _ <- char '-' <* lookAhead lowerCaseChar
-            x <- A.some $ (char '-' <* lookAhead lowerCaseChar) <|> lowerCaseChar
-            pure $ "-" <> p <> "-" <> S.fromCharArray x
-        )
-          <|> ( string "::"
-                *> oneOfString
-                    [ "after"
-                    , "before"
-                    , "first-letter"
-                    , "first-line"
-                    , "placeholder"
-                    , "selection"
-                    ]
-            )
-      )
-
-combinator :: forall r. ParseM r Combinator
+combinator :: Parser Combinator
 combinator =
-  (const GeneralSibling <$> char '~')
-    <|> (const AdjacentSibling <$> char '+')
-    <|> (const Parent <$> char '>')
-    <|> (const Ancestor <$> char '_')
+  do
+    char '_' *> pure Ancestor
+    <|> char '>'
+    *> pure Parent
+    <|> char '+'
+    *> pure AdjSib
+    <|> char '~'
+    *> pure GenSib
 
-context :: forall r. ParseM r Context
-context = do
-  cl <- classList
-  c <- combinator
-  pure $ Context $ Tuple cl c
+pseudoElement :: Parser PseudoElement
+pseudoElement = do
+  _ <- string "::"
+  prefix <- fromMaybe "" <$> (optionMaybe $ oneOfString [ "-moz-", "-ms-", "-o-", "-webkit-" ])
+  h <- lowerCaseChar
+  t <- A.some (lowerCaseChar <|> try (char '-' <* lookAhead lowerCaseChar))
+  pure $ PseudoElement $ prefix <> S.fromCharArray (h `A.cons` t)
 
-selector :: forall r. ParseM r Selector
+context :: Parser Context
+context = Context <$> (Tuple <$> A.some cls <*> combinator)
+
+selector :: Parser Selector
 selector = do
-  a <- optionMaybe $ try context
-  b <- optionMaybe classList
-  c <- optionMaybe pseudoElement
-  if isNothing a && isNothing b && isNothing c then
-    fail "Expected selector."
+  context' <- optionMaybe $ try context
+  classes' <- A.many $ try cls
+  pseudoElement' <- optionMaybe pseudoElement
+  if null context' && null classes' && null pseudoElement' then
+    fail "Expected a context, classes, and/or pseudo-element."
   else
-    pure $ Selector { context: a, classes: b, pseudoElement: c }
+    pure $ emptySelector # selectorContext .~ context'
+      # selectorClasses
+      .~ classes'
+      # selectorPseudoElement
+      .~ pseudoElement'
 
-atScope :: forall r. ParseM { knownAtScopes :: Array AtScope | r } AtScope
+atScope :: Parser AtScope
 atScope = do
-  p <- asks $ oneOfString <<< map (un AtScope) <<< _.knownAtScopes
-  AtScope <$> (char '@' *> p)
-
-priority :: forall r. ParseM r Int
-priority = A.length <$> A.some (char '!')
-
-rule :: forall r. ParseM { knownAtScopes :: Array AtScope, knownProperties :: Array Property, knownVariables :: Array Variable | r } Rule
-rule = do
-  core <- try full <|> withAtScope <|> withSelector <|> declarationsOnly
-  p <- priority <|> pure 0
-  pure
-    { atScope: core.atScope
-    , selector: core.selector
-    , declarations: core.declarations
-    , priority: p
-    }
+  _ <- char '@'
+  h <- allowedChar
+  t <- A.some $ allowedChar <|> try (char '-' <* lookAhead allowedChar)
+  pure $ AtScope $ S.fromCharArray $ h `A.cons` t
   where
-  full = do
-    a <- atScope
-    _ <- char '{'
-    s <- selector
-    _ <- char '{'
-    declarations <- declaration `sepBy1` char ';'
-    _ <- string "}}"
-    pure
-      { atScope: Just a
-      , selector: Just s
-      , declarations
-      }
+  allowedChar = lowerCaseChar <|> anyDigit
 
-  withAtScope = do
-    a <- atScope
+priority :: Parser Priority
+priority = Priority <<< A.length <$> A.some (char '!')
+
+rule :: Parser Rule
+rule =
+  ( try
+      ( ( \(Tuple atScope' (Tuple selector' declarations')) ->
+            emptyRule # ruleAtScope .~ Just atScope'
+              # ruleSelector
+              .~ Just selector'
+              # ruleDeclarations
+              .~ declarations'
+        )
+          <$> wrap atScope (wrap selector declarations)
+      )
+      <|> ( ( \(Tuple atScope' declarations') ->
+              emptyRule
+                # ruleAtScope
+                .~ Just atScope'
+                # ruleDeclarations
+                .~ declarations'
+          )
+            <$> wrap atScope declarations
+        )
+      <|> ( ( \(Tuple selector' declarations') ->
+              emptyRule
+                # ruleSelector
+                .~ Just selector'
+                # ruleDeclarations
+                .~ declarations'
+          )
+            <$> wrap selector declarations
+        )
+      <|> ( (\declarations' -> emptyRule # ruleDeclarations .~ declarations')
+            <$> A.some (declaration <* char ';')
+        )
+  )
+    >>= \base -> priority <|> pure (Priority 0) >>= \p -> pure $ rulePriority .~ p $ base
+  where
+  declarations = A.fromFoldable <$> declaration `sepBy1` char ';'
+
+  wrap :: forall o i. Parser o -> Parser i -> Parser (Tuple o i)
+  wrap outer inner = do
+    o <- outer
     _ <- char '{'
-    declarations <- declaration `sepBy1` char ';'
+    i <- inner
     _ <- char '}'
-    pure
-      { atScope: Just a
-      , selector: Nothing
-      , declarations
-      }
+    pure $ Tuple o i
 
-  withSelector = do
-    s <- selector
-    _ <- char '{'
-    declarations <- declaration `sepBy1` char ';'
-    _ <- char '}'
-    pure
-      { atScope: Nothing
-      , selector: Just s
-      , declarations
-      }
-
-  declarationsOnly = do
-    declarations <- declaration `endBy1` char ';'
-    pure
-      { atScope: Nothing
-      , selector: Nothing
-      , declarations
-      }
-
-rules ::
-  forall r.
-  ParseM
-    { knownAtScopes :: Array AtScope
-    , knownProperties :: Array Property
-    , knownVariables :: Array Variable
-    | r
-    }
-    (Array Rule)
-rules = A.reverse <<< A.fromFoldable <<< L.nub <$> whileJust rules'
+rules :: Parser (Array Rule)
+rules = A.reverse <<< A.nub <<< A.fromFoldable <$> whileJust rules'
   where
   rules' =
     (eof *> pure Nothing)

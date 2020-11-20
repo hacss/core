@@ -6,6 +6,7 @@
   , "generics-rep"
   , "newtype"
   , "nullable"
+  , "profunctor-lenses"
   , "psci-support"
   , "spec"
   , "string-parsers"

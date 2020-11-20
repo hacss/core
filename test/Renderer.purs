@@ -1,6 +1,8 @@
 module Test.Hacss.Renderer where
 
 import Prelude
+import Data.Either (Either(..))
+import Data.Lens ((.~))
 import Data.Map (lookup)
 import Data.Map (singleton) as Map
 import Data.Maybe (Maybe(..))
@@ -8,17 +10,13 @@ import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Test.Spec (SpecT, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Hacss.Data (AtScope(..), ClassList(..), ClassName(..), Combinator(..), Context(..), Property(..), PseudoClass(..), PseudoElement(..), Selector(..), ValContext(..), ValExpr(..), Value(..), Variable(..))
-import Hacss.Renderer (render)
+import Hacss.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), ValCtx(..), ValExpr(..), Value(..), Variable(..), emptyRule, emptySelector, ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
+import Hacss.Renderer (RenderError(..), render)
 
 tests :: forall m. Monad m => SpecT Aff Unit m Unit
 tests =
   describe "renderer"
     $ let
-        emptyRule = { atScope: Nothing, selector: Nothing, declarations: [], priority: 0 }
-
-        emptySelector f = Selector $ f { context: Nothing, classes: Nothing, pseudoElement: Nothing }
-
         resolveAtScope = flip lookup $ Map.singleton (AtScope "sm") ("media only screen and (max-width:400px)")
 
         resolveVariable = flip lookup $ Map.singleton (Variable "red500") "#900"
@@ -28,150 +26,202 @@ tests =
         do
           it "renders a simple declarations-only rule"
             $ render'
-                emptyRule
-                  { declarations =
-                    [ Tuple
-                        (Property "background")
-                        (Value [ Tuple Nothing [ Lit "red" ] ])
-                    , Tuple
-                        (Property "color")
-                        (Value [ Tuple Nothing [ Lit "white" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ ( Declaration
+                          <$> [ Tuple
+                                (Property "background")
+                                (Value $ Right [ Tuple Nothing [ Lit "red" ] ])
+                            , Tuple
+                                (Property "color")
+                                (Value $ Right [ Tuple Nothing [ Lit "white" ] ])
+                            ]
+                      )
+                )
                 `shouldEqual`
-                  """.background\:red\;color\:white\;{background:red;color:white}"""
-          it "renders a rule with a variable"
+                  Right """.background\:red\;color\:white\;{background:red;color:white;}"""
+          it "renders a rule with a variable-only declaration"
             $ render'
-                emptyRule
-                  { declarations =
-                    [ Tuple
-                        (Property "background")
-                        (Value [ Tuple Nothing [ Var $ Variable "red500" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "background")
+                              (Value $ Left $ Variable "red500")
+                      ]
+                )
                 `shouldEqual`
-                  """.background\:\$red500\;{background:#900}"""
-          it "renders a rule with an unresolved variable"
+                  Right """.background\:\$red500\;{background:#900;}"""
+          it "renders a rule with an interpolated variable"
             $ render'
-                emptyRule
-                  { declarations =
-                    [ Tuple
-                        (Property "background")
-                        (Value [ Tuple Nothing [ Var $ Variable "foo-asdf" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "background")
+                              (Value $ Right [ Tuple Nothing [ Var $ Variable "red500", Lit "asdf" ] ])
+                      ]
+                )
                 `shouldEqual`
-                  """.background\:\$foo-asdf\;{background:$foo-asdf}"""
+                  Right """.background\:\#\{\$red500\}asdf\;{background:#900asdf;}"""
+          it "fails when a non-interpolated variable cannot be resolved"
+            $ render'
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "background")
+                              (Value $ Left $ Variable "foo-asdf")
+                      ]
+                )
+                `shouldEqual`
+                  Left (UnresolvedVariable $ Variable "foo-asdf")
+          it "fails when an interpolated variable cannot be resolved"
+            $ render'
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "background")
+                              (Value $ Right [ Tuple Nothing [ Lit "a", Var $ Variable "foo-asdf", Lit "b" ] ])
+                      ]
+                )
+                `shouldEqual`
+                  Left (UnresolvedVariable $ Variable "foo-asdf")
           it "renders a rule with a URL"
             $ render'
-                emptyRule
-                  { declarations =
-                    [ Tuple
-                        (Property "background-image")
-                        (Value [ Tuple (Just URL) [ Lit "https://bomb.com/foo.gif" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "background-image")
+                              (Value $ Right [ Tuple (Just URL) [ Lit "https://bomb.com/foo.gif" ] ])
+                      ]
+                )
                 `shouldEqual`
-                  """.background-image\:url\(\'https\:\/\/bomb\.com\/foo\.gif\'\)\;{background-image:url('https://bomb.com/foo.gif')}"""
+                  Right """.background-image\:url\(\'https\:\/\/bomb\.com\/foo\.gif\'\)\;{background-image:url('https://bomb.com/foo.gif');}"""
           it "renders a rule with a variable within a URL"
             $ render'
-                emptyRule
-                  { declarations =
-                    [ Tuple
-                        (Property "background-image")
-                        (Value [ Tuple (Just URL) [ Lit "https://abc.xyz/logo.svg?c=", Var $ Variable "red500" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "background-image")
+                              (Value $ Right [ Tuple (Just URL) [ Lit "https://abc.xyz/logo.svg?c=", Var $ Variable "red500" ] ])
+                      ]
+                )
                 `shouldEqual`
-                  """.background-image\:url\(\'https\:\/\/abc\.xyz\/logo\.svg\?c\=\$red500\'\)\;{background-image:url('https://abc.xyz/logo.svg?c=%23900')}"""
+                  Right """.background-image\:url\(\'https\:\/\/abc\.xyz\/logo\.svg\?c\=\#\{\$red500\}\'\)\;{background-image:url('https://abc.xyz/logo.svg?c=%23900');}"""
           it "renders a rule with a calc expression"
             $ render'
-                emptyRule
-                  { declarations =
-                    [ Tuple
-                        (Property "width")
-                        (Value [ Tuple (Just Calc) [ Lit "5px + 20%" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "width")
+                              (Value $ Right [ Tuple (Just Calc) [ Lit "5px + 20%" ] ])
+                      ]
+                )
                 `shouldEqual`
-                  """.width\:calc\(5px\+20\%\)\;{width:calc(5px + 20%)}"""
+                  Right """.width\:calc\(5px\+20\%\)\;{width:calc(5px + 20%);}"""
           it "renders a rule with a class selector"
             $ render'
-                emptyRule
-                  { selector =
-                    Just $ emptySelector _ { classes = Just $ ClassList $ Tuple [ ClassName "err" ] [] }
-                  , declarations =
-                    [ Tuple
-                        (Property "color")
-                        (Value [ Tuple Nothing [ Lit "red" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleSelector
+                    .~ Just (emptySelector # selectorClasses .~ [ NamedClass "err" ])
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "color")
+                              (Value $ Right [ Tuple Nothing [ Lit "red" ] ])
+                      ]
+                )
                 `shouldEqual`
-                  """.\.err\{color\:red\}.err{color:red}"""
+                  Right """.\.err\{color\:red\}.err{color:red;}"""
           it "renders a rule with a context selector"
             $ render'
-                emptyRule
-                  { selector =
-                    Just
-                      $ emptySelector
-                          _
-                            { context = Just $ Context $ Tuple (ClassList $ Tuple [] [ BasicPseudoClass "checked" ]) AdjacentSibling
-                            }
-                  , declarations =
-                    [ Tuple
-                        (Property "text-decoration")
-                        (Value [ Tuple Nothing [ Lit "line-through" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleSelector
+                    .~ Just
+                        (emptySelector # selectorContext .~ Just (Context $ Tuple [ PseudoClass "checked" ] AdjSib))
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "text-decoration")
+                              (Value $ Right [ Tuple Nothing [ Lit "line-through" ] ])
+                      ]
+                )
                 `shouldEqual`
-                  """:checked+.\:checked\+\{text-decoration\:line-through\}{text-decoration:line-through}"""
+                  Right """:checked+.\:checked\+\{text-decoration\:line-through\}{text-decoration:line-through;}"""
           it "renders a rule with a pseudo-element"
             $ render'
-                emptyRule
-                  { selector =
-                    Just $ emptySelector _ { pseudoElement = Just $ PseudoElement "after" }
-                  , declarations =
-                    [ Tuple
-                        (Property "content")
-                        (Value [ Tuple Nothing [ Lit "''" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleSelector
+                    .~ Just (emptySelector # selectorPseudoElement .~ Just (PseudoElement "after"))
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "content")
+                              (Value $ Right [ Tuple Nothing [ Lit "''" ] ])
+                      ]
+                )
                 `shouldEqual`
-                  """.\:\:after\{content\:\'\'\}::after{content:''}"""
+                  Right """.\:\:after\{content\:\'\'\}::after{content:'';}"""
           it "renders a rule with an at-scope"
             $ render'
-                emptyRule
-                  { atScope = Just $ AtScope "sm"
-                  , declarations =
-                    [ Tuple
-                        (Property "padding")
-                        (Value [ Tuple Nothing [ Lit "0" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleAtScope
+                    .~ Just (AtScope "sm")
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "padding")
+                              (Value $ Right [ Tuple Nothing [ Lit "0" ] ])
+                      ]
+                )
                 `shouldEqual`
-                  """@media only screen and (max-width:400px){.\@sm\{padding\:0\}{padding:0}}"""
+                  Right """@media only screen and (max-width:400px){.\@sm\{padding\:0\}{padding:0;}}"""
+          it "rejects a rule with an at-scope that cannot be resolved"
+            $ render'
+                ( emptyRule
+                    # ruleAtScope
+                    .~ Just (AtScope "foo")
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "padding")
+                              (Value $ Right [ Tuple Nothing [ Lit "0" ] ])
+                      ]
+                )
+                `shouldEqual`
+                  Left (UnresolvedAtScope $ AtScope "foo")
           it "renders a rule with an at-scope and a selector"
             $ render'
-                emptyRule
-                  { atScope = Just $ AtScope "sm"
-                  , selector = Just $ emptySelector _ { pseudoElement = Just $ PseudoElement "before" }
-                  , declarations =
-                    [ Tuple
-                        (Property "padding")
-                        (Value [ Tuple Nothing [ Lit "0" ] ])
-                    ]
-                  }
+                ( emptyRule
+                    # ruleAtScope
+                    .~ Just (AtScope "sm")
+                    # ruleSelector
+                    .~ Just (emptySelector # selectorPseudoElement .~ Just (PseudoElement "before"))
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "padding")
+                              (Value $ Right [ Tuple Nothing [ Lit "0" ] ])
+                      ]
+                )
                 `shouldEqual`
-                  """@media only screen and (max-width:400px){.\@sm\{\:\:before\{padding\:0\}\}::before{padding:0}}"""
+                  Right """@media only screen and (max-width:400px){.\@sm\{\:\:before\{padding\:0\}\}::before{padding:0;}}"""
           it "renders a rule with priority"
             $ render'
-                emptyRule
-                  { declarations =
-                    [ Tuple
-                        (Property "background")
-                        (Value [ Tuple Nothing [ Lit "red" ] ])
-                    ]
-                  , priority = 2
-                  }
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "background")
+                              (Value $ Right [ Tuple Nothing [ Lit "red" ] ])
+                      ]
+                    # rulePriority
+                    .~ Priority 2
+                )
                 `shouldEqual`
-                  """.background\:red\;\!\!.background\:red\;\!\!.background\:red\;\!\!{background:red}"""
+                  Right """.background\:red\;\!\!.background\:red\;\!\!.background\:red\;\!\!{background:red;}"""
