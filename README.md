@@ -12,5 +12,4 @@
 ## Resources
 
 * Guides, Getting Started, and more: [hacss.io](https://hacss.io)
-* [Tests](test/index.html)
 * Try Hacss in your browser: [Basement Hacss](https://basement.hacss.io)
