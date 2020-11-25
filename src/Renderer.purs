@@ -1,4 +1,4 @@
-module Hacss.Renderer where
+module Hacss.Internal.Renderer (CSS, RenderError(..), printRenderError, render) where
 
 import Prelude
 import Data.Array (replicate)
@@ -11,8 +11,8 @@ import Data.Newtype (un)
 import Data.String.Common (joinWith) as S
 import Data.Tuple (Tuple(..))
 import Global (encodeURIComponent)
-import Hacss.Data (AtScope, Declaration(..), Priority(..), Property(..), Rule, ValCtx(..), ValExpr(..), Value(..), Variable(..), ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
-import Hacss.Printer as Print
+import Hacss.Internal.Data (AtScope, Declaration(..), Priority(..), Property(..), Rule, ValCtx(..), ValExpr(..), Value(..), Variable(..), ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
+import Hacss.Internal.Printer as Print
 
 type Resolve t
   = t -> Maybe String

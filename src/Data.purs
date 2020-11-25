@@ -1,4 +1,4 @@
-module Hacss.Data where
+module Hacss.Internal.Data (AtScope(..), Class(..), Combinator(..), Context(..), ContextRep, Declaration(..), DeclarationRep, Priority(..), Property(..), PseudoElement(..), Rule, Selector, ValCtx(..), ValExpr(..), Value(..), Variable(..), emptyRule, emptySelector, ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement) where
 
 import Prelude
 import Data.Either (Either)

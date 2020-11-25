@@ -1,4 +1,4 @@
-module Hacss.Parser where
+module Hacss.Internal.Parser (atScope, cls, combinator, context, declaration, priority, property, pseudoElement, rule, rules, selector, value) where
 
 import Prelude
 import Control.Alt ((<|>))
@@ -17,7 +17,7 @@ import Data.Tuple (Tuple(..))
 import Text.Parsing.StringParser (Parser, fail, try)
 import Text.Parsing.StringParser.CodeUnits (anyChar, anyDigit, char, eof, lowerCaseChar, noneOf, regex, string)
 import Text.Parsing.StringParser.Combinators ((<?>), lookAhead, optionMaybe, sepBy1)
-import Hacss.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), Rule, Selector, ValCtx(..), ValExpr(..), Value(..), Variable(..), emptyRule, emptySelector, ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorContext, selectorClasses, selectorPseudoElement)
+import Hacss.Internal.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), Rule, Selector, ValCtx(..), ValExpr(..), Value(..), Variable(..), emptyRule, emptySelector, ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorContext, selectorClasses, selectorPseudoElement)
 
 whiteSpace :: Array Char
 whiteSpace = [ ' ', '\t', '\r', '\n' ]

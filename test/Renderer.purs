@@ -1,4 +1,4 @@
-module Test.Hacss.Renderer where
+module Test.Hacss.Internal.Renderer (tests) where
 
 import Prelude
 import Data.Either (Either(..))
@@ -10,8 +10,8 @@ import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Test.Spec (SpecT, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Hacss.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), ValCtx(..), ValExpr(..), Value(..), Variable(..), emptyRule, emptySelector, ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
-import Hacss.Renderer (RenderError(..), render)
+import Hacss.Internal.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), ValCtx(..), ValExpr(..), Value(..), Variable(..), emptyRule, emptySelector, ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
+import Hacss.Internal.Renderer (RenderError(..), render)
 
 tests :: forall m. Monad m => SpecT Aff Unit m Unit
 tests =

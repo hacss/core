@@ -1,4 +1,4 @@
-module Hacss.Printer where
+module Hacss.Internal.Printer (atScope, classes, cls, combinator, context, declaration, priority, property, pseudoElement, rule, selector, value) where
 
 import Prelude
 import Data.Array (replicate)
@@ -11,7 +11,7 @@ import Data.String (joinWith, replaceAll) as S
 import Data.String.CodeUnits (fromCharArray) as S
 import Data.String.Pattern (Pattern(..), Replacement(..))
 import Data.Tuple (Tuple(..))
-import Hacss.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), Rule, Selector, ValCtx(..), ValExpr(..), Value(..), Variable(..), ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
+import Hacss.Internal.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), Rule, Selector, ValCtx(..), ValExpr(..), Value(..), Variable(..), ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
 
 atScope :: AtScope -> String
 atScope = ("@" <> _) <<< un AtScope

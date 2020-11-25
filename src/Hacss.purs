@@ -1,4 +1,10 @@
-module Hacss (HacssError, hacss) where
+module Hacss
+  ( hacss
+  , HacssError(..)
+  , printHacssError
+  , module PublicData
+  , module PublicRenderer
+  ) where
 
 import Prelude
 import Data.Bifunctor (lmap)
@@ -14,9 +20,11 @@ import Effect.Exception (throw)
 import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object (Object, lookup)
 import Text.Parsing.StringParser (ParseError, runParser)
-import Hacss.Data (AtScope(..), Variable(..))
-import Hacss.Parser (rules) as Parse
-import Hacss.Renderer (CSS, RenderError, printRenderError, render)
+import Hacss.Internal.Data (AtScope(..), Variable(..))
+import Hacss.Internal.Parser (rules) as Parse
+import Hacss.Internal.Renderer (CSS, RenderError, printRenderError, render)
+import Hacss.Internal.Data (AtScope(..), Variable(..)) as PublicData
+import Hacss.Internal.Renderer (CSS, RenderError(..), printRenderError) as PublicRenderer
 
 type Code
   = String
@@ -35,7 +43,7 @@ printHacssError = case _ of
   ParseFailure e -> show e
   RenderFailure e -> printRenderError e
 
-hacss :: (AtScope -> Maybe String) -> (Variable -> Maybe String) -> Code -> Either HacssError CSS
+hacss :: (AtScope -> Maybe CSS) -> (Variable -> Maybe CSS) -> Code -> Either HacssError CSS
 hacss resolveAtScope resolveVariable code =
   joinWith ""
     <$> ( (lmap ParseFailure $ runParser Parse.rules code)

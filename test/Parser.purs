@@ -1,4 +1,4 @@
-module Test.Hacss.Parser where
+module Test.Hacss.Internal.Parser (tests) where
 
 import Prelude
 import Data.Either (Either(..), isLeft)
@@ -10,8 +10,8 @@ import Effect.Aff (Aff)
 import Test.Spec (SpecT, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 import Text.Parsing.StringParser (runParser)
-import Hacss.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), ValCtx(..), ValExpr(..), Value(..), Variable(..), emptyRule, emptySelector, ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorContext, selectorClasses, selectorPseudoElement)
-import Hacss.Parser (atScope, cls, combinator, context, declaration, priority, property, pseudoElement, rule, selector, value)
+import Hacss.Internal.Data (AtScope(..), Class(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), PseudoElement(..), ValCtx(..), ValExpr(..), Value(..), Variable(..), emptyRule, emptySelector, ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorContext, selectorClasses, selectorPseudoElement)
+import Hacss.Internal.Parser (atScope, cls, combinator, context, declaration, priority, property, pseudoElement, rule, selector, value)
 
 tests :: forall m. Monad m => SpecT Aff Unit m Unit
 tests = do
