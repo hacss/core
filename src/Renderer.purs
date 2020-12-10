@@ -11,7 +11,7 @@ import Data.Newtype (un)
 import Data.String.Common (joinWith) as S
 import Data.Tuple (Tuple(..))
 import Global (encodeURIComponent)
-import Hacss.Internal.Data (AtScope, Declaration(..), Priority(..), Property(..), Rule, ValCtx(..), ValExpr(..), Value(..), Variable(..), ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
+import Hacss.Internal.Data (AtScope(..), Declaration(..), Priority(..), Property(..), Rule, ValCtx(..), ValExpr(..), Value(..), Variable(..), ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
 import Hacss.Internal.Printer as Print
 
 type Resolve t
@@ -24,7 +24,7 @@ data RenderError
 
 printRenderError :: RenderError -> String
 printRenderError = case _ of
-  UnresolvedAtScope a -> "Unresolved at-scope \"" <> Print.atScope a <> "\""
+  UnresolvedAtScope (AtScope a) -> "Unresolved at-scope \"" <> a <> "\""
   UnresolvedVariable (Variable v) -> "Unresolved variable \"" <> v <> "\""
   UnencodableVariable (Variable v) -> "Variable \"" <> v <> "\" contains characters that cannot be URL-encoded."
 
