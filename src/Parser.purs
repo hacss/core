@@ -7,7 +7,7 @@ import Control.Monad.Rec.Class (whileJust)
 import Data.Array (cons, elem, fromFoldable, length, many, nub, reverse, some, sortWith) as A
 import Data.Either (Either(..))
 import Data.Foldable (null)
-import Data.Lens ((.~))
+import Data.Lens ((^.), (.~))
 import Data.List (List(Nil), (:))
 import Data.List (null) as L
 import Data.Maybe (Maybe(..), fromMaybe, isJust)
@@ -261,7 +261,7 @@ rule =
     pure $ Tuple o i
 
 rules :: Parser (Array Rule)
-rules = A.reverse <<< A.nub <<< A.fromFoldable <$> whileJust rules'
+rules = A.sortWith (\r -> r ^. ruleAtScope) <<< A.nub <<< A.fromFoldable <$> whileJust rules'
   where
   rules' =
     (eof *> pure Nothing)
