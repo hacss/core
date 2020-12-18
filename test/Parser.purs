@@ -76,6 +76,10 @@ tests = do
       $ runParser value "'#000'"
           `shouldEqual`
             Right (Value (Right [ Tuple (Just Quoted) [ Lit "#000" ] ]))
+    it "accepts an empty-string quoted value"
+      $ runParser value "''"
+          `shouldEqual`
+            Right (Value (Right [ Tuple (Just Quoted) [] ]))
     it "accepts a quoted value containing a variable"
       $ runParser value "'asdf#{$asdf-fdsa}fdsa'"
           `shouldEqual`

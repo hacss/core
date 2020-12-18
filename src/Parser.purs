@@ -87,7 +87,7 @@ value = variableOnly <|> normal
 
     quoted = do
       _ <- char '\''
-      x <- Tuple (Just Quoted) <$> A.some (try var <|> lit)
+      x <- Tuple (Just Quoted) <$> A.many (try var <|> lit)
       _ <- char '\''
       pure x
       where

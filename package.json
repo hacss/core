@@ -1,6 +1,6 @@
 {
   "name": "@hacss/core",
-  "version": "4.0.3",
+  "version": "4.0.4",
   "description": "The core Hacss library",
   "main": "dist/hacss.umd.js",
   "scripts": {
