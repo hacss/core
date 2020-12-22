@@ -40,8 +40,10 @@ value = variableOnly <|> normal
   where
   variableOnly = Value <<< Left <$> variable
 
-  normal = Value <<< Right <$> A.some (calc <|> url <|> quoted <|> unquoted)
+  normal = Value <<< Right <$> (lookAhead notProtocol *> A.some (calc <|> url <|> quoted <|> unquoted))
     where
+    notProtocol = regex "^(?!//)"
+
     calc = do
       _ <- string "calc("
       x <- Tuple (Just Calc) <<< A.reverse <<< A.fromFoldable <$> calc' 1 Nil Nil

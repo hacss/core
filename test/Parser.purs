@@ -72,6 +72,8 @@ tests = do
         $ runParser value ("foo#{$" <> b <> "}")
             `shouldEqual`
               Right (Value (Right [ Tuple Nothing [ Lit "foo" ] ]))
+    it "rejects leading // (used for protocols)"
+      $ runParser value "//foo.com" `shouldSatisfy` isLeft
     it "accepts a simple quoted value"
       $ runParser value "'#000'"
           `shouldEqual`
