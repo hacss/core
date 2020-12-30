@@ -2,10 +2,9 @@
 , dependencies =
   [ "console"
   , "effect"
-  , "foreign-object"
+  , "foreign"
   , "generics-rep"
   , "newtype"
-  , "nullable"
   , "profunctor-lenses"
   , "psci-support"
   , "spec"

@@ -19,31 +19,31 @@ type Resolve t
 
 data RenderError
   = UnresolvedAtScope AtScope
-  | UnresolvedVariable Variable
-  | UnencodableVariable Variable
+  | UnresolvedVariable Property Variable
+  | UnencodableVariable Property Variable
 
 printRenderError :: RenderError -> String
 printRenderError = case _ of
   UnresolvedAtScope (AtScope a) -> "Unresolved at-scope \"" <> a <> "\""
-  UnresolvedVariable (Variable v) -> "Unresolved variable \"" <> v <> "\""
-  UnencodableVariable (Variable v) -> "Variable \"" <> v <> "\" contains characters that cannot be URL-encoded."
+  UnresolvedVariable (Property p) (Variable v) -> "Unresolved variable \"" <> v <> "\" on property \"" <> p <> "\""
+  UnencodableVariable (Property p) (Variable v) -> "Variable \"" <> v <> "\" on property \"" <> p <> "\" contains characters that cannot be URL-encoded."
 
 instance eqRenderError :: Eq RenderError where
   eq (UnresolvedAtScope a) (UnresolvedAtScope b) = a == b
-  eq (UnresolvedVariable a) (UnresolvedVariable b) = a == b
-  eq (UnencodableVariable a) (UnencodableVariable b) = a == b
+  eq (UnresolvedVariable p v) (UnresolvedVariable p' v') = p == p' && v == v'
+  eq (UnencodableVariable p v) (UnencodableVariable p' v') = p == p' && v == v'
   eq _ _ = false
 
 instance showRenderError :: Show RenderError where
   show (UnresolvedAtScope x) = "(UnresolvedAtScope " <> show x <> ")"
-  show (UnresolvedVariable x) = "(UnresolvedVariable " <> show x <> ")"
-  show (UnencodableVariable x) = "(UnencodableVariable " <> show x <> ")"
+  show (UnresolvedVariable p v) = "(UnresolvedVariable " <> show p <> " " <> show v <> ")"
+  show (UnencodableVariable p v) = "(UnencodableVariable " <> show p <> " " <> show v <> ")"
 
 type CSS
   = String
 
-render :: Resolve AtScope -> Resolve Variable -> Rule -> Either RenderError CSS
-render resolveAtScope resolveVariable r =
+render :: (Property -> Variable -> Maybe String) -> (AtScope -> Maybe String) -> Rule -> Either RenderError CSS
+render resolveVariable resolveAtScope r =
   render' <$> atScope'
     <*> selector'
     <*> declarations'
@@ -76,10 +76,10 @@ render resolveAtScope resolveVariable r =
   declarations' =
     foldMap (_ <> ";")
       <$> traverse
-          ( \(Declaration (Tuple (Property p) (Value valueInner))) ->
+          ( \(Declaration (Tuple property@(Property p) (Value valueInner))) ->
               (\v -> p <> ":" <> v)
                 <$> ( case valueInner of
-                      Left v -> note (UnresolvedVariable v) $ resolveVariable v
+                      Left v -> note (UnresolvedVariable property v) $ resolveVariable property v
                       Right vs ->
                         S.joinWith ""
                           <$> traverse
@@ -90,7 +90,7 @@ render resolveAtScope resolveVariable r =
                                         <$> traverse
                                             ( case _ of
                                                 Lit x -> pure x
-                                                Var v -> note (UnresolvedVariable v) $ resolveVariable v
+                                                Var v -> note (UnresolvedVariable property v) $ resolveVariable property v
                                             )
                                             exprs
                                   in
@@ -100,7 +100,7 @@ render resolveAtScope resolveVariable r =
                                           <$> traverse
                                               ( case _ of
                                                   Lit x -> pure x
-                                                  Var v -> note (UnresolvedVariable v) (resolveVariable v) >>= encodeURIComponent >>> note (UnencodableVariable v)
+                                                  Var v -> note (UnresolvedVariable property v) (resolveVariable property v) >>= encodeURIComponent >>> note (UnencodableVariable property v)
                                               )
                                               exprs
                                       Just Calc -> (\x -> "calc(" <> x <> ")") <$> default

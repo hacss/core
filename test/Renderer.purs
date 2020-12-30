@@ -3,8 +3,6 @@ module Test.Hacss.Internal.Renderer (tests) where
 import Prelude
 import Data.Either (Either(..))
 import Data.Lens ((.~))
-import Data.Map (lookup)
-import Data.Map (singleton) as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
@@ -17,11 +15,19 @@ tests :: forall m. Monad m => SpecT Aff Unit m Unit
 tests =
   describe "renderer"
     $ let
-        resolveAtScope = flip lookup $ Map.singleton (AtScope "sm") ("media only screen and (max-width:400px)")
+        resolveAtScope (AtScope "sm") = Just "media only screen and (max-width:400px)"
 
-        resolveVariable = flip lookup $ Map.singleton (Variable "red500") "#900"
+        resolveAtScope _ = Nothing
 
-        render' = render resolveAtScope resolveVariable
+        resolveVariable (Property "border") (Variable "thin") = Just "1px"
+
+        resolveVariable (Property "font-weight") (Variable "thin") = Just "300"
+
+        resolveVariable _ (Variable "red500") = Just "#900"
+
+        resolveVariable _ _ = Nothing
+
+        render' = render resolveVariable resolveAtScope
       in
         do
           it "renders a simple declarations-only rule"
@@ -64,6 +70,18 @@ tests =
                 )
                 `shouldEqual`
                   Right """.background\:\#\{\$red500\}asdf\;{background:#900asdf;}"""
+          it "resolves a non-interpolated variable using both property and variable name"
+            $ render'
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "font-weight")
+                              (Value $ Left $ Variable "thin")
+                      ]
+                )
+                `shouldEqual`
+                  Right """.font-weight\:\$thin\;{font-weight:300;}"""
           it "fails when a non-interpolated variable cannot be resolved"
             $ render'
                 ( emptyRule
@@ -75,7 +93,19 @@ tests =
                       ]
                 )
                 `shouldEqual`
-                  Left (UnresolvedVariable $ Variable "foo-asdf")
+                  Left (UnresolvedVariable (Property "background") (Variable "foo-asdf"))
+          it "resolves an interpolated variable using both property and variable name"
+            $ render'
+                ( emptyRule
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "border")
+                              (Value $ Right [ Tuple Nothing [ Var (Variable "thin"), Lit " solid black" ] ])
+                      ]
+                )
+                `shouldEqual`
+                  Right """.border\:\#\{\$thin\}__solid__black\;{border:1px solid black;}"""
           it "fails when an interpolated variable cannot be resolved"
             $ render'
                 ( emptyRule
@@ -87,7 +117,7 @@ tests =
                       ]
                 )
                 `shouldEqual`
-                  Left (UnresolvedVariable $ Variable "foo-asdf")
+                  Left (UnresolvedVariable (Property "background") (Variable "foo-asdf"))
           it "renders a rule with a URL"
             $ render'
                 ( emptyRule
