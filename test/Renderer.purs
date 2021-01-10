@@ -168,7 +168,7 @@ tests =
                 )
                 `shouldEqual`
                   Right """.\.err\{color\:red\}.err{color:red;}"""
-          it "renders a rule with a context selector"
+          it "renders a rule with a context selector (adjacent sibling)"
             $ render'
                 ( emptyRule
                     # ruleSelector
@@ -183,6 +183,21 @@ tests =
                 )
                 `shouldEqual`
                   Right """:checked+.\:checked\+\{text-decoration\:line-through\}{text-decoration:line-through;}"""
+          it "renders a rule with a context selector (ancestor)"
+            $ render'
+                ( emptyRule
+                    # ruleSelector
+                    .~ Just
+                        (emptySelector # selectorContext .~ Just (Context $ Tuple [ PseudoClass "active" ] Ancestor))
+                    # ruleDeclarations
+                    .~ [ Declaration
+                          $ Tuple
+                              (Property "color")
+                              (Value $ Right [ Tuple Nothing [ Lit "red" ] ])
+                      ]
+                )
+                `shouldEqual`
+                  Right """:active .\:active_\{color\:red\}{color:red;}"""
           it "renders a rule with a pseudo-element"
             $ render'
                 ( emptyRule

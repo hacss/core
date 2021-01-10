@@ -11,7 +11,7 @@ import Data.Newtype (un)
 import Data.String.Common (joinWith) as S
 import Data.Tuple (Tuple(..))
 import Global (encodeURIComponent)
-import Hacss.Internal.Data (AtScope(..), Declaration(..), Priority(..), Property(..), Rule, ValCtx(..), ValExpr(..), Value(..), Variable(..), ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
+import Hacss.Internal.Data (AtScope(..), Combinator(..), Context(..), Declaration(..), Priority(..), Property(..), Rule, ValCtx(..), ValExpr(..), Value(..), Variable(..), ruleAtScope, ruleDeclarations, rulePriority, ruleSelector, selectorClasses, selectorContext, selectorPseudoElement)
 import Hacss.Internal.Printer as Print
 
 type Resolve t
@@ -62,7 +62,18 @@ render resolveVariable resolveAtScope r =
   selector' :: Either RenderError CSS
   selector' =
     let
-      ctx = fromMaybe mempty $ Print.context <$> ((r ^. ruleSelector) >>= (_ ^. selectorContext))
+      ctx =
+        let
+          ctx' (Context (Tuple a b)) =
+            Print.classes a
+              <> ( case b of
+                    AdjSib -> "+"
+                    Ancestor -> " "
+                    GenSib -> "~"
+                    Parent -> ">"
+                )
+        in
+          fromMaybe mempty $ ctx' <$> ((r ^. ruleSelector) >>= (_ ^. selectorContext))
 
       base = S.joinWith "" $ replicate (un Priority (r ^. rulePriority) + 1) $ "." <> cssEscape (Print.rule r)
 
