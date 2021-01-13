@@ -60,7 +60,7 @@ unsafeForeignHacss =
             $ (variables >>= readProp p >>= readProp v >>= readString)
             <|> (variables >>= readProp v >>= readString)
 
-      resolveAtScope (AtScope a) = hush $ runExcept $ readProp "atScope" config >>= readProp a >>= readString
+      resolveAtScope (AtScope a) = hush $ runExcept $ readProp "atScopes" config >>= readProp a >>= readString
     in
       either
         (printHacssError >>> throw >>> unsafePerformEffect)
