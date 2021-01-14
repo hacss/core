@@ -269,4 +269,4 @@ tests =
                     .~ Priority 2
                 )
                 `shouldEqual`
-                  Right """.background\:red\;\!\!.background\:red\;\!\!.background\:red\;\!\!{background:red;}"""
+                  Right """.background\:red\;\!\!:not(.\*):not(.\*){background:red;}"""

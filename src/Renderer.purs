@@ -75,7 +75,7 @@ render resolveVariable resolveAtScope r =
         in
           fromMaybe mempty $ ctx' <$> ((r ^. ruleSelector) >>= (_ ^. selectorContext))
 
-      base = S.joinWith "" $ replicate (un Priority (r ^. rulePriority) + 1) $ "." <> cssEscape (Print.rule r)
+      base = "." <> cssEscape (Print.rule r) <> (S.joinWith "" $ replicate (un Priority $ r ^. rulePriority) $ ":not(.\\*)")
 
       classes = Print.classes $ fromMaybe mempty $ (_ ^. selectorClasses) <$> (r ^. ruleSelector)
 
